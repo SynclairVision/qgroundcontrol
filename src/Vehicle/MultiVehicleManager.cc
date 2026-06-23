@@ -73,7 +73,7 @@ void MultiVehicleManager::_vehicleHeartbeatInfo(LinkInterface* link, int vehicle
                                         << componentId
                                         << vehicleFirmwareType
                                         << vehicleType;
-        return;
+        //return;
     }
 
 #ifndef QGC_NO_ARDUPILOT_DIALECT
@@ -86,7 +86,7 @@ void MultiVehicleManager::_vehicleHeartbeatInfo(LinkInterface* link, int vehicle
 #endif
 
     switch (vehicleType) {
-    case MAV_TYPE_GCS:
+    //case MAV_TYPE_GCS:
     case MAV_TYPE_ONBOARD_CONTROLLER:
     case MAV_TYPE_GIMBAL:
     case MAV_TYPE_ADSB:
