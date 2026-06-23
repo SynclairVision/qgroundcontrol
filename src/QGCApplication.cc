@@ -2,6 +2,8 @@
 #include "QGCApplication.h"
 #include "qgc_version.h"
 
+#include "SvMavlinkHandler.h"
+
 #include <QtCore/QEvent>
 #include <QtCore/QFile>
 #include <QtCore/QMetaMethod>
