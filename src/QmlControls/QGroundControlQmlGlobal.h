@@ -10,6 +10,7 @@
 #include "qgc_version.h"
 
 class ADSBVehicleManager;
+class DigiviewManager;
 class FactGroup;
 class LinkManager;
 class MAVLinkSigningKeys;
@@ -25,6 +26,7 @@ class VideoManager;
 class QmlObjectListModel;
 
 Q_MOC_INCLUDE("ADSBVehicleManager.h")
+Q_MOC_INCLUDE("DigiviewManager.h")
 Q_MOC_INCLUDE("NTRIPManager.h")
 Q_MOC_INCLUDE("FactGroup.h")
 Q_MOC_INCLUDE("LinkManager.h")
@@ -66,6 +68,7 @@ public:
     Q_PROPERTY(QGCMapEngineManager* mapEngineManager        READ    mapEngineManager        CONSTANT)
     Q_PROPERTY(QGCPositionManager*  qgcPositionManger       READ    qgcPositionManger       CONSTANT)
     Q_PROPERTY(VideoManager*        videoManager            READ    videoManager            CONSTANT)
+    Q_PROPERTY(DigiviewManager*     digiviewManager         READ    digiviewManager         CONSTANT)
     Q_PROPERTY(SettingsManager*     settingsManager         READ    settingsManager         CONSTANT)
     Q_PROPERTY(ADSBVehicleManager*  adsbVehicleManager      READ    adsbVehicleManager      CONSTANT)
     Q_PROPERTY(NTRIPManager*        ntripManager            READ    ntripManager            CONSTANT)
@@ -161,6 +164,7 @@ public:
     MissionCommandTree*     missionCommandTree  ()  { return _missionCommandTree; }
     MAVLinkSigningKeys*     mavlinkSigningKeys  ()  { return _mavlinkSigningKeys; }
     VideoManager*           videoManager        ()  { return _videoManager; }
+    DigiviewManager*        digiviewManager     ()  { return _digiviewManager; }
     QGCCorePlugin*          corePlugin          ()  { return _corePlugin; }
     SettingsManager*        settingsManager     ()  { return _settingsManager; }
 #ifndef QGC_NO_SERIAL_LINK
@@ -223,6 +227,7 @@ private:
     MissionCommandTree*     _missionCommandTree     = nullptr;
     MAVLinkSigningKeys*     _mavlinkSigningKeys     = nullptr;
     VideoManager*           _videoManager           = nullptr;
+    DigiviewManager*        _digiviewManager        = nullptr;
     LinkManager*            _linkManager            = nullptr;
     MultiVehicleManager*    _multiVehicleManager    = nullptr;
     SettingsManager*        _settingsManager        = nullptr;

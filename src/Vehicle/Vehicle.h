@@ -17,8 +17,6 @@
 #include <array>
 #include <atomic>
 
-#include "SvMavlinkHandler.h"
-
 #include "QGCMAVLink.h"
 #include "VehicleFactGroup.h"
 #include "VehicleSigningController.h"  // Q_PROPERTY needs the full QObject type for moc/QML metatype registration
@@ -895,9 +893,6 @@ private:
     bool setFlightModeCustom            (const QString& flightMode, uint8_t* base_mode, uint32_t* custom_mode);
     QString _formatMavCommand           (MAV_CMD command, float param1);
 
-    SvMavlinkHandler* _svMavlinkHandler = nullptr;
-        /////////////////////////////////////////////////////
-
     static void _rebootCommandResultHandler(void* resultHandlerData, int compId, const mavlink_command_ack_t& ack, MavCmdResultFailureCode_t failureCode);
 
     // The following methods should only be called by unit tests
@@ -1047,10 +1042,6 @@ private:
     RequestMessageCoordinator*  _reqMsgCoord    = nullptr;
 
 public:
-    Q_PROPERTY(SvMavlinkHandler* svMavlinkHandler READ svMavlinkHandler CONSTANT)
-    SvMavlinkHandler* svMavlinkHandler() { return _svMavlinkHandler; }
-    ////////////////////////////////////////////////
-
     /// Ack timeout used in unit tests — kept on Vehicle for source-compat with
     /// existing tests (mirrors MavCommandQueue::kTestAckTimeoutMs).
     static constexpr int _mavCommandMaxRetryCount    = 3;
