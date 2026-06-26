@@ -40,7 +40,6 @@ add_subdirectory(API)
 add_subdirectory(AutoPilotPlugins)
 add_subdirectory(Camera)
 add_subdirectory(Comms)
-add_subdirectory(Digiview)
 add_subdirectory(FactSystem)
 add_subdirectory(FirmwarePlugin)
 add_subdirectory(FlyView)
@@ -58,6 +57,7 @@ add_subdirectory(PlanView)
 add_subdirectory(PositionManager)
 add_subdirectory(QmlControls)
 add_subdirectory(Settings)
+add_subdirectory(SynclairVision)
 add_subdirectory(Terrain)
 add_subdirectory(AppSettings)
 add_subdirectory(FirstRunPromptDialogs)
@@ -144,6 +144,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         QGroundControlModule
         ToolbarModule
         VehicleSetupModule
+        SynclairVisionUIModule
 )
 
 # ----------------------------------------------------------------------------
