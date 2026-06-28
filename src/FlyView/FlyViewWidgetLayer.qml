@@ -14,7 +14,9 @@ import QGroundControl.FlyView
 import QGroundControl.FlightMap
 import QGroundControl.Viewer3D
 
-// This is the ui overlay layer for the widgets/tools for Fly View
+import QGroundControl.SynclairVisionUI
+
+
 Item {
     id: _root
 
@@ -68,7 +70,7 @@ Item {
         anchors.top:        parent.top
         anchors.right:      parent.right
         spacing:            _layoutSpacing
-        visible:           !topRightPanel.visible
+        visible:           !topRightPanel.visible && !SVState.svOverlay
 
         property real topEdgeRightInset:    childrenRect.height + _layoutMargin
         property real rightEdgeTopInset:    width + _layoutMargin
@@ -80,6 +82,7 @@ Item {
         anchors.bottom:     parent.bottom
         anchors.right:      parent.right
         spacing:            _layoutSpacing
+        visible:            !SVState.svOverlay
 
         property real bottomEdgeRightInset:     height + _layoutMargin
         property real bottomEdgeCenterInset:    bottomEdgeRightInset
