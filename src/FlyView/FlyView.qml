@@ -106,6 +106,17 @@ Item {
             property real leftEdgeBottomInset: visible ? width + anchors.margins : 0
             property real bottomEdgeLeftInset: visible ? height + anchors.margins : 0
         }
+        
+        SVFlyView   {
+            id:                 synclairVisionLayer
+            anchors.fill:       parent
+            _widgetMargin:      _root._widgetMargin
+            _toolBarHeight:     toolbar.height
+            z:                  _fullItemZorder + 2
+
+            parentToolInsets:   _toolInsets
+            visible:            !QGroundControl.videoManager.fullScreen && SVState.svOverlay && !_mainWindowIsMap
+        }
 
         FlyViewWidgetLayer {
             id:                     widgetLayer
@@ -120,16 +131,7 @@ Item {
             mapControl:             _mapControl
         }
 
-        SVFlyView   {
-            id:                 synclairVisionLayer
-            anchors.fill:       parent
-            _widgetMargin:      _root._widgetMargin
-            _toolBarHeight:     toolbar.height
-            z:                  _fullItemZorder + 2
-
-            parentToolInsets:   _toolInsets
-            visible:            !QGroundControl.videoManager.fullScreen && SVState.svOverlay
-        }
+        
 
         FlyViewCustomLayer {
             id:                 customOverlay
