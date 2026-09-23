@@ -335,6 +335,10 @@ bool DigiviewManager::applyAndRestart(
         emit commandRejected(tr("DigiView is already applying a restart."));
         return false;
     }
+    if (_videoOutputTransaction) {
+        emit commandRejected(tr("DigiView is still processing a prior video-output update. Wait for it to finish."));
+        return false;
+    }
     if (!sessionActive() || !_hasVideoOutputParameters || !_hasAIParameters
         || !_aiModelDiscoveryReady || model.trimmed().isEmpty() || !_availableScanModels.contains(model)) {
         _finishRestart(false, tr("Authoritative DigiView video, AI, and model discovery is not ready."));
@@ -356,12 +360,21 @@ bool DigiviewManager::applyAndRestart(
         value = static_cast<uint8_t>(candidate);
         return true;
     };
+    std::optional<uint8_t> explicitDetectionOverlayMode;
+    if (overlay.contains(QStringLiteral("detectionOverlayMode"))) {
+        bool ok = false;
+        const int candidate = overlay.value(QStringLiteral("detectionOverlayMode")).toInt(&ok);
+        if (ok && candidate >= Layout::DET_OVERLAY_NONE && candidate <= Layout::DET_OVERLAY_MAX) {
+            explicitDetectionOverlayMode = static_cast<uint8_t>(candidate);
+        }
+    }
     if (!applyByte("layoutMode", payload.layout_mode, Layout::LAYOUT_1, Layout::LAYOUT_MAX)
-        || !applyByte("detectionOverlayMode", payload.detection_overlay_mode,
-                      Layout::DET_OVERLAY_NONE, Layout::DET_OVERLAY_MAX)) {
+        || (overlay.contains(QStringLiteral("detectionOverlayMode")) && !explicitDetectionOverlayMode)) {
         _finishRestart(false, tr("The staged DigiView video overlay is invalid."));
         return false;
     }
+    payload.detection_overlay_mode = explicitDetectionOverlayMode.value_or(
+        _desiredVideoOutputDetectionOverlayMode.value_or(payload.detection_overlay_mode));
     payload.num_user_views = userViewCountForLayout(payload.layout_mode);
     _stagedVideoOutput = payload;
     _stagedAiEnabled = aiEnabled;
@@ -377,13 +390,21 @@ bool DigiviewManager::applyAndRestart(
     _videoOutputTransaction = VideoOutputTransaction {
         _nextVideoOutputTransactionGeneration,
         {std::nullopt, std::nullopt, payload.layout_mode, payload.detection_overlay_mode, payload.num_user_views},
-        QDeadlineTimer(kVideoOutputTransactionTimeoutMs), false, false};
+        QDeadlineTimer(kVideoOutputTransactionTimeoutMs)};
     _videoOutputTransactionTimerGeneration = _videoOutputTransaction->generation;
     _videoOutputTransactionTimer.start(kVideoOutputTransactionTimeoutMs);
     if (!_sendVideoOutputParameters(payload)) {
         _finishRestart(false, tr("DigiView VIDEO_OUTPUT_PARAMETERS could not be sent."));
         return false;
     }
+    if (explicitDetectionOverlayMode) {
+        const int previousEffectiveDetectionOverlayMode = videoOutputDetectionOverlayMode();
+        _desiredVideoOutputDetectionOverlayMode = explicitDetectionOverlayMode;
+        if (videoOutputDetectionOverlayMode() != previousEffectiveDetectionOverlayMode) {
+            emit videoOutputDetectionOverlayModeChanged();
+        }
+    }
+    (void) requestVideoOutputParameters();
     return true;
 }
 
@@ -517,6 +538,8 @@ bool DigiviewManager::_sendVideoOutputUpdate(
     }
     if (detectionOverlayMode) {
         payload.detection_overlay_mode = *detectionOverlayMode;
+    } else if (_desiredVideoOutputDetectionOverlayMode) {
+        payload.detection_overlay_mode = *_desiredVideoOutputDetectionOverlayMode;
     }
     payload.num_user_views = userViewCountForLayout(payload.layout_mode);
 
@@ -525,17 +548,29 @@ bool DigiviewManager::_sendVideoOutputUpdate(
         _nextVideoOutputTransactionGeneration,
         {payload.width, payload.height, payload.layout_mode, payload.detection_overlay_mode, payload.num_user_views},
         QDeadlineTimer(kVideoOutputTransactionTimeoutMs),
-        false,
-        false,
     };
     _videoOutputTransactionTimerGeneration = _videoOutputTransaction->generation;
     _videoOutputTransactionTimer.start(kVideoOutputTransactionTimeoutMs);
     if (!_sendVideoOutputParameters(payload)) {
         _videoOutputTransactionTimer.stop();
         _videoOutputTransaction.reset();
+        const QString error = lastError();
+        if (error.isEmpty()) {
+            emit commandRejected(tr("DigiView video-output update could not be sent."));
+        } else {
+            emit commandRejected(tr("DigiView video-output update could not be sent: %1").arg(error));
+        }
         return false;
     }
 
+    if (detectionOverlayMode) {
+        const int previousEffectiveDetectionOverlayMode = videoOutputDetectionOverlayMode();
+        _desiredVideoOutputDetectionOverlayMode = detectionOverlayMode;
+        if (videoOutputDetectionOverlayMode() != previousEffectiveDetectionOverlayMode) {
+            emit videoOutputDetectionOverlayModeChanged();
+        }
+    }
+    (void) requestVideoOutputParameters();
     return true;
 }
 
@@ -1520,29 +1555,10 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
                 }
             }
             if ((ack.command == MAVLINK_MSG_ID_VIDEO_OUTPUT_PARAMETERS)
-                && _videoOutputTransaction) {
-                if (ack.result == MAV_RESULT_ACCEPTED) {
-                    // COMMAND_ACK has no transaction generation. An old accepted ACK may request a GET, but only
-                    // matching authoritative state can complete the current transaction.
-                    auto& transaction = *_videoOutputTransaction;
-                    transaction.awaitingAuthoritativeState = true;
-                    if (!transaction.stateGetIssued) {
-                        transaction.stateGetIssued = true;
-                        (void) _requestParameters(MAVLINK_MSG_ID_VIDEO_OUTPUT_PARAMETERS);
-                    }
-                } else if (ack.result == MAV_RESULT_DENIED) {
-                    emit commandRejected(
-                        tr("DigiView rejected the video-output update because the selected pipeline is locked."));
-                    _videoOutputTransactionTimer.stop();
-                    _videoOutputTransaction.reset();
-                    if (_restartBusy) _finishRestart(false, tr("DigiView rejected the staged video-output update."));
-                } else {
-                    emit commandRejected(tr("DigiView rejected the video-output update: %1.")
-                                             .arg(QGCMAVLink::mavResultToString(ack.result)));
-                    _videoOutputTransactionTimer.stop();
-                    _videoOutputTransaction.reset();
-                    if (_restartBusy) _finishRestart(false, tr("DigiView rejected the staged video-output update."));
-                }
+                && _videoOutputTransaction && (ack.result != MAV_RESULT_ACCEPTED)) {
+                qCWarning(DigiviewManagerLog)
+                    << "Ignoring uncorrelatable VIDEO_OUTPUT_PARAMETERS rejection while an update is pending"
+                    << "result" << QGCMAVLink::mavResultToString(ack.result);
             }
         }
         break;
@@ -1713,8 +1729,9 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         const int detectionOverlayMode = payload.detection_overlay_mode;
         const int numUserViews = payload.num_user_views;
         const int singleDetectionSize = payload.single_detection_size;
+        const int previousEffectiveDetectionOverlayMode = videoOutputDetectionOverlayMode();
         const bool completesVideoOutputTransaction = [&] {
-            if (!_videoOutputTransaction || !_videoOutputTransaction->awaitingAuthoritativeState) return false;
+            if (!_videoOutputTransaction) return false;
 
             const auto& requested = _videoOutputTransaction->requested;
             if (!requested.width && !requested.height) {
@@ -1736,8 +1753,6 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         const bool videoOutputHeightChangedValue = _videoOutputHeight != height;
         const bool videoOutputFpsChangedValue = _videoOutputFps != fps;
         const bool videoOutputLayoutModeChangedValue = _videoOutputLayoutMode != layoutMode;
-        const bool videoOutputDetectionOverlayModeChangedValue =
-            _videoOutputDetectionOverlayMode != detectionOverlayMode;
         const bool videoOutputNumUserViewsChangedValue = _videoOutputNumUserViews != numUserViews;
         const bool videoOutputViewsChangedValue = _videoOutputViews != views;
         const bool videoOutputDetectionOverlayRectChangedValue =
@@ -1756,6 +1771,12 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         _videoOutputViews = views;
         _videoOutputDetectionOverlayRect = detectionOverlayRect;
         _videoOutputSingleDetectionSize = singleDetectionSize;
+        if ((!_videoOutputTransaction || completesVideoOutputTransaction)
+            && (_desiredVideoOutputDetectionOverlayMode == payload.detection_overlay_mode)) {
+            _desiredVideoOutputDetectionOverlayMode.reset();
+        }
+        const bool videoOutputDetectionOverlayModeChangedValue = hasVideoOutputParametersChangedValue
+            || (videoOutputDetectionOverlayMode() != previousEffectiveDetectionOverlayMode);
 
         if (hasVideoOutputParametersChangedValue) {
             emit hasVideoOutputParametersChanged();
@@ -2274,7 +2295,14 @@ void DigiviewManager::_videoOutputTransactionTimedOut()
     qCWarning(DigiviewManagerLog) << "Timed out waiting for authoritative VIDEO_OUTPUT_PARAMETERS state"
                                   << "generation" << _videoOutputTransaction->generation;
     _videoOutputTransaction.reset();
-    if (_restartBusy) _finishRestart(false, tr("DigiView did not confirm VIDEO_OUTPUT_PARAMETERS."));
+    if (_restartBusy) {
+        _finishRestart(false, tr("DigiView did not confirm VIDEO_OUTPUT_PARAMETERS."));
+    } else {
+        _hasVideoOutputParameters = false;
+        emit hasVideoOutputParametersChanged();
+        emit commandRejected(tr("DigiView did not confirm the video-output update before it timed out."));
+        (void) requestVideoOutputParameters();
+    }
 }
 
 void DigiviewManager::_aiTransactionTimedOut()
@@ -2627,7 +2655,7 @@ void DigiviewManager::_resetRemoteSession()
     const bool videoOutputFpsChangedValue = _videoOutputFps != 0;
     const bool videoOutputLayoutModeChangedValue = _videoOutputLayoutMode != Layout::LAYOUT_1;
     const bool videoOutputDetectionOverlayModeChangedValue =
-        _videoOutputDetectionOverlayMode != Layout::DET_OVERLAY_NONE;
+        videoOutputDetectionOverlayMode() != Layout::DET_OVERLAY_NONE;
     const bool videoOutputNumUserViewsChangedValue = _videoOutputNumUserViews != 0;
     const bool videoOutputViewsChangedValue = !_videoOutputViews.isEmpty();
     const bool videoOutputDetectionOverlayRectChangedValue = !_videoOutputDetectionOverlayRect.isEmpty();
@@ -2640,6 +2668,7 @@ void DigiviewManager::_resetRemoteSession()
     _videoOutputFps = 0;
     _videoOutputLayoutMode = Layout::LAYOUT_1;
     _videoOutputDetectionOverlayMode = Layout::DET_OVERLAY_NONE;
+    _desiredVideoOutputDetectionOverlayMode.reset();
     _videoOutputNumUserViews = 0;
     _videoOutputViews.clear();
     _videoOutputDetectionOverlayRect.clear();

@@ -449,7 +449,7 @@ Item {
         }
 
         if (settingData.property === 'aiDetectionOverlayPosition') {
-            setSettingValue(settingData, value)
+            SVState.setAiDetectionOverlayPosition(value)
             return
         }
 
@@ -672,6 +672,10 @@ Item {
     function isSettingEnabled(settingData) {
         if (settingData && settingData.enabled === false) {
             return false
+        }
+
+        if (settingData && settingData.id === 'aiDetectionOverlay') {
+            return aiAuthoritativeReady && SVState.hasCurrentVideoOutputState && !root.digiview.restartBusy
         }
 
         if (settingData && settingData.stagedAI) {
@@ -929,18 +933,17 @@ Item {
 
         QGCSimpleMessageDialog {
             title: qsTr('Restart DigiView?')
-            text: qsTr('Apply staged settings?\n\nResolution: %1x%2\nEnable AI: %3\nScan Model: %4\nAI Detection Overlay: %5\n\nVideo and control will briefly disconnect while DigiView restarts.')
+            text: qsTr('Apply staged settings?\n\nResolution: %1x%2\nEnable AI: %3\nScan Model: %4\n\nVideo and control will briefly disconnect while DigiView restarts.')
                 .arg(SVSettings.videoResolutionWidth)
                 .arg(SVSettings.videoResolutionHeight)
                 .arg(SVSettings.aiEnabledDraft ? qsTr('Enabled') : qsTr('Disabled'))
                 .arg(SVSettings.aiScanModelDraft)
-                .arg(SVSettings.aiDetectionOverlayPosition)
             buttons: Dialog.Yes | Dialog.No
 
             onAccepted: {
                 if (root.digiview.applyAndRestart({
                     layoutMode: root.digiview.videoOutputLayoutMode,
-                    detectionOverlayMode: SVState.aiDetectionOverlayModeForPosition(SVSettings.aiDetectionOverlayPosition)
+                    detectionOverlayMode: SVState.desiredAiDetectionOverlayMode
                 }, SVSettings.videoResolutionWidth, SVSettings.videoResolutionHeight,
                 SVSettings.aiEnabledDraft, SVSettings.aiScanModelDraft)) {
                     SVNotificationManager.add(qsTr('DigiView restart'), qsTr('Applying staged settings...'),

@@ -94,7 +94,7 @@ function getGeneralSections(isRecording) {
                     property: 'aiDetectionOverlayPosition',
                     type: 'dropdown',
                     label: 'AI Detection Overlay',
-                    description: 'Stage the AI detection overlay position for the next DigiView restart.',
+                    description: 'Set the AI detection overlay position immediately.',
                     currentIndex: 0,
                     stagedAI: true,
                     options: [
@@ -108,7 +108,7 @@ function getGeneralSections(isRecording) {
                 {
                     id: 'aiRestartNote',
                     type: 'note',
-                    description: 'AI changes take effect after restarting DigiView.'
+                    description: 'AI enablement and scan model changes take effect after restarting DigiView.'
                 }
             ]
         },
@@ -147,7 +147,7 @@ function getGeneralSections(isRecording) {
                     id: 'restart_digiview',
                     type: 'button',
                     label: 'Restart DigiView',
-                    description: 'Apply staged AI and overlay settings, then restart DigiView.',
+                    description: 'Apply staged resolution, AI enablement, and scan model, then restart DigiView.',
                     text: 'Restart',
                     buttonRole: 'restartDigiview',
                     stagedAI: true

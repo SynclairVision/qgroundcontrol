@@ -134,7 +134,10 @@ public:
     int videoOutputHeight() const { return _videoOutputHeight; }
     int videoOutputFps() const { return _videoOutputFps; }
     int videoOutputLayoutMode() const { return _videoOutputLayoutMode; }
-    int videoOutputDetectionOverlayMode() const { return _videoOutputDetectionOverlayMode; }
+    int videoOutputDetectionOverlayMode() const
+    {
+        return _desiredVideoOutputDetectionOverlayMode.value_or(_videoOutputDetectionOverlayMode);
+    }
     int videoOutputNumUserViews() const { return _videoOutputNumUserViews; }
     QVariantList videoOutputViews() const { return _videoOutputViews; }
     QVariantMap videoOutputDetectionOverlayRect() const { return _videoOutputDetectionOverlayRect; }
@@ -432,8 +435,6 @@ private:
         quint64 generation = 0;
         VideoOutputLayoutSnapshot requested;
         QDeadlineTimer deadline;
-        bool awaitingAuthoritativeState = false;
-        bool stateGetIssued = false;
     };
 
     struct AiTransaction {
@@ -508,6 +509,7 @@ private:
     int _videoOutputFps = 0;
     int _videoOutputLayoutMode = Layout::LAYOUT_1;
     int _videoOutputDetectionOverlayMode = Layout::DET_OVERLAY_NONE;
+    std::optional<uint8_t> _desiredVideoOutputDetectionOverlayMode;
     int _videoOutputNumUserViews = 0;
     QVariantList _videoOutputViews;
     QVariantMap _videoOutputDetectionOverlayRect;

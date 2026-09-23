@@ -234,18 +234,25 @@ QtObject {
 
     function sendAiDetectionOverlayMode(mode) {
         if (!hasCurrentVideoOutputState) {
-            return
+            return false
         }
 
-        digiview.setDetectionOverlayMode(mode)
+        return digiview.setDetectionOverlayMode(mode)
     }
 
     function setAiDetectionOverlayPosition(positionId) {
         const mode = aiDetectionOverlayModeForPosition(positionId)
 
-        if (mode !== DigiviewProtocol.DetectionOverlayNone) {
-            sendAiDetectionOverlayMode(mode)
+        if (mode === DigiviewProtocol.DetectionOverlayNone) {
+            return false
         }
+
+        if (!sendAiDetectionOverlayMode(mode)) {
+            return false
+        }
+
+        SVSettings.aiDetectionOverlayPosition = positionId
+        return true
     }
 
     function toggleAiOverlay() {
@@ -657,6 +664,8 @@ QtObject {
         && digiview.sessionActive
         && digiview.hasVideoOutputParameters
         && digiview.videoOutputStreamName === digiview.streamName
+    readonly property int desiredAiDetectionOverlayMode:
+        aiDetectionOverlayModeForPosition(SVSettings.aiDetectionOverlayPosition)
     readonly property bool aiOverlay: hasCurrentVideoOutputState
         && aiDetectionOverlayPositionForMode(digiview.videoOutputDetectionOverlayMode) !== ''
     readonly property string effectiveAiDetectionOverlayPosition: {
@@ -667,8 +676,7 @@ QtObject {
             }
         }
 
-        return aiDetectionOverlayModeForPosition(SVSettings.aiDetectionOverlayPosition)
-                !== DigiviewProtocol.DetectionOverlayNone
+        return desiredAiDetectionOverlayMode !== DigiviewProtocol.DetectionOverlayNone
             ? SVSettings.aiDetectionOverlayPosition
             : 'Single'
     }
