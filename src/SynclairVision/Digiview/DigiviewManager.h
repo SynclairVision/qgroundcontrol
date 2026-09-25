@@ -395,6 +395,7 @@ private:
     bool _requestParameters(uint32_t messageId, float parameter3 = 0.0F, bool* pendingRequest = nullptr);
     bool _sendVideoOutputUpdate(std::optional<uint8_t> layoutMode, std::optional<uint8_t> detectionOverlayMode);
     bool _sendVideoOutputParameters(const mavlink_video_output_parameters_t& payload);
+    bool _sendAutomaticViewSourceCameras(uint8_t viewCount);
     bool _rejectUnsupportedSet(const QString& parameterName);
     bool _sendCamTargetingParameters(const mavlink_cam_targeting_parameters_t& payload);
     bool _sendSingleTargetTrackingParameters(const mavlink_single_target_tracking_parameters_t& payload);
@@ -515,6 +516,7 @@ private:
     QVariantMap _videoOutputDetectionOverlayRect;
     int _videoOutputSingleDetectionSize = 0;
     mavlink_video_output_parameters_t _videoOutputParameters {};
+    std::optional<uint8_t> _automaticViewSourceLayoutMode;
 
     bool _hasAIParameters = false;
     bool _aiEnabled = false;

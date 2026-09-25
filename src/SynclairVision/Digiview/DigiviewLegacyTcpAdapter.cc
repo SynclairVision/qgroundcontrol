@@ -21,9 +21,10 @@ namespace {
 constexpr uint8_t kSyntheticSystemId = 252;
 constexpr uint8_t kSyntheticComponentId = 66;
 constexpr float kOneShotIntervalUs = -1000.0F;
+constexpr uint32_t kCropCameraMagic = 0x43524F50U;
 constexpr char kSupportedParameterGroups[] =
     "SYSTEM_STATUS, AI, MODEL (GET only), VIDEO_OUTPUT, CAPTURE, DETECTION, TRACKED_DETECTION (GET only), "
-    "CAM_TARGETING, CAM_OPTICS_AND_CONTROL, SENSOR, SINGLE_TARGET_TRACKING, and CALIBRATION";
+    "CAM_TARGETING, VIEW_CROP_CAMERA, CAM_OPTICS_AND_CONTROL, SENSOR, SINGLE_TARGET_TRACKING, and CALIBRATION";
 
 const char* deliberatelyUnsupportedParameterGroup(uint32_t messageId)
 {
@@ -128,6 +129,14 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
     case MAVLINK_MSG_ID_CAM_OPTICS_AND_CONTROL_PARAMETERS:
         parameterType = CAM_OPTICS_AND_CONTROL;
         break;
+    case MAVLINK_MSG_ID_VIEW_CROP_CAMERA_PARAMETERS:
+        if (!std::isfinite(command.param3) || (command.param3 < 0.0F)
+            || (command.param3 > static_cast<float>(std::numeric_limits<uint8_t>::max()))) {
+            error = QStringLiteral("Invalid DigiView VIEW_CROP_CAMERA view id %1").arg(command.param3);
+            return false;
+        }
+        parameterType = VIEW_CROP_CAMERA;
+        break;
     case MAVLINK_MSG_ID_CALIBRATION_PARAMETERS:
         if (!std::isfinite(command.param3) || (command.param3 < 0.0F)
             || (command.param3 > static_cast<float>(std::numeric_limits<uint8_t>::max()))) {
@@ -150,6 +159,8 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
     } else if (parameterType == CALIBRATION) {
         pack_calibration_parameters(nativeMessage, static_cast<uint8_t>(command.param3), CALIBRATION_CMD_NONE,
                                     CALIBRATION_STATUS_NOT_STARTED, 0, 0);
+    } else if (parameterType == VIEW_CROP_CAMERA) {
+        pack_view_crop_camera_parameters(nativeMessage, nullptr, static_cast<uint8_t>(command.param3), -1);
     }
     if ((command.param2 == kOneShotIntervalUs) || (command.param2 == 0.0F)) {
         nativeMessage.interval_ms = 0;
@@ -300,7 +311,23 @@ QByteArray DigiviewLegacyTcpAdapter::encode(const mavlink_message_t& mavlinkMess
                                           parameters.roll, parameters.stabilization_flags, parameters.x_offset,
                                           parameters.y_offset, parameters.target_latitude,
                                           parameters.target_longitude, parameters.target_altitude,
-                                          parameters.track_id, parameters.view_id, parameters.lock_target != 0U);
+                                           parameters.track_id, parameters.view_id, parameters.lock_target != 0U,
+                                           parameters.crop_camera_magic == kCropCameraMagic
+                                               ? cam_targeting_crop_camera_from_wire(parameters.crop_camera)
+                                               : CAM_TARGETING_CROP_CAMERA_NO_CHANGE);
+        break;
+    }
+    case MAVLINK_MSG_ID_VIEW_CROP_CAMERA_PARAMETERS: {
+        mavlink_view_crop_camera_parameters_t parameters {};
+        mavlink_msg_view_crop_camera_parameters_decode(&mavlinkMessage, &parameters);
+        if (parameters.camera_id < -1) {
+            error = QStringLiteral("Invalid DigiView TCP view crop camera id %1").arg(parameters.camera_id);
+            return {};
+        }
+        nativeMessage.version = VERSION;
+        nativeMessage.message_type = SET_PARAMETERS;
+        pack_set_view_crop_camera_parameters(nativeMessage, parameters.stream_name, parameters.view_id,
+                                             parameters.camera_id);
         break;
     }
     case MAVLINK_MSG_ID_CAM_OPTICS_AND_CONTROL_PARAMETERS: {
@@ -578,8 +605,21 @@ DigiviewLegacyTcpAdapter::DecodeResult DigiviewLegacyTcpAdapter::decode(
         parameters.track_id = nativeParameters.track_id;
         parameters.view_id = nativeParameters.view_id;
         parameters.lock_target = nativeParameters.lock_target ? 1U : 0U;
+        parameters.crop_camera = cam_targeting_crop_camera_to_wire(nativeParameters.crop_camera);
+        parameters.crop_camera_magic = kCropCameraMagic;
         mavlink_msg_cam_targeting_parameters_encode(kSyntheticSystemId, kSyntheticComponentId, &mavlinkMessage,
                                                     &parameters);
+        break;
+    }
+    case VIEW_CROP_CAMERA: {
+        view_crop_camera_parameters nativeParameters {};
+        unpack_view_crop_camera_parameters(nativeMessage, nativeParameters);
+        mavlink_view_crop_camera_parameters_t parameters {};
+        std::memcpy(parameters.stream_name, nativeParameters.stream_name, sizeof(parameters.stream_name));
+        parameters.view_id = nativeParameters.view_id;
+        parameters.camera_id = nativeParameters.camera_id;
+        mavlink_msg_view_crop_camera_parameters_encode(kSyntheticSystemId, kSyntheticComponentId,
+                                                       &mavlinkMessage, &parameters);
         break;
     }
     case CAM_OPTICS_AND_CONTROL: {
