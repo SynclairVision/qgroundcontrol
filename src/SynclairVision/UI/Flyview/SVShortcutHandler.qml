@@ -48,10 +48,8 @@ Item {
     readonly property int zoomInRole: 4
     readonly property int zoomOutRole: 5
     readonly property int smallMovementRole: 6
-    readonly property int cameraSelectRole: 7
-    property bool cameraSelectHeld: false
     property var heldVisualKeys: ({})
-    property var heldVisualRoleCounts: [0, 0, 0, 0, 0, 0, 0, 0]
+    property var heldVisualRoleCounts: [0, 0, 0, 0, 0, 0, 0]
     readonly property bool shortcutInputEligible: root.visible
         && root.Window.window && root.Window.window.active
         && !SVSettings.shortcutCaptureActive && !root.textInputHasFocus()
@@ -80,8 +78,9 @@ Item {
             }
         }
 
-        // Kör zoom (använd Math.max för att garantera att steget inte avrundas till 0 i backend)
-        const zoomStep = Math.max(1, Math.round(SVSettings.zoomSensitivity * strength))
+        // Keep precision mode useful for zoom as well as joystick movement.
+        const zoomScale = smallMovement ? 0.333 : 1.0
+        const zoomStep = Math.max(1, Math.round(SVSettings.zoomSensitivity * strength * zoomScale))
         if (SVState.shortcutZoomInHeld) {
             SVState.changeZoom(zoomStep)
         }
@@ -209,14 +208,31 @@ Item {
     }
 
     function dispatchSourceCameraShortcut(key) {
-        if (!root.cameraSelectHeld || key < Qt.Key_0 || key > Qt.Key_9) return false
-        if (!root.shortcutInputEligible || !SVState.shortcutsEnabled) return true
+        if (!SVState.shortcutSmallMovementHeld) return false
 
-        const requestedCamera = key - Qt.Key_0
-        const availableCameras = root.flyView && root.flyView.digiview
-            ? root.flyView.digiview.videoOutputNumCameras : 0
-        const cameraId = requestedCamera > 0 && requestedCamera <= availableCameras
-            ? requestedCamera : 0
+        const action = root.shortcutRegistry[key]
+        let cameraId = -1
+        switch (action) {
+        case root.actionCamera1:
+            cameraId = 1
+            break
+        case root.actionCamera2:
+            cameraId = 2
+            break
+        case root.actionCamera3:
+            cameraId = 3
+            break
+        case root.actionCamera4:
+            cameraId = 4
+            break
+        case root.actionCamera5:
+            cameraId = 5
+            break
+        default:
+            return false
+        }
+
+        if (!root.isShortcutEnabled(key)) return true
         SVState.setSelectedViewSourceCamera(cameraId)
         return true
     }
@@ -250,9 +266,6 @@ Item {
         if (key !== 0 && key === SVSettings.shortcutSmallMovement) {
             roles.push(root.smallMovementRole)
         }
-        if (key !== 0 && key === SVSettings.shortcutCameraSelect) {
-            roles.push(root.cameraSelectRole)
-        }
 
         return roles
     }
@@ -274,8 +287,6 @@ Item {
             SVState.shortcutZoomOutHeld = nextCount > 0
         } else if (role === root.smallMovementRole) {
             SVState.shortcutSmallMovementHeld = nextCount > 0
-        } else if (role === root.cameraSelectRole) {
-            root.cameraSelectHeld = nextCount > 0
         }
     }
 
@@ -288,8 +299,7 @@ Item {
     function clearVisualHeldState() {
         root.stopShortcutTimers()
         root.heldVisualKeys = ({})
-        root.heldVisualRoleCounts = [0, 0, 0, 0, 0, 0, 0, 0]
-        root.cameraSelectHeld = false
+        root.heldVisualRoleCounts = [0, 0, 0, 0, 0, 0, 0]
         SVState.shortcutJoystickHeld = [false, false, false, false]
         SVState.shortcutZoomInHeld = false
         SVState.shortcutZoomOutHeld = false

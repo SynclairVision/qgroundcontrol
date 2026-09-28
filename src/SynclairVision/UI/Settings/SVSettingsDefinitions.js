@@ -521,11 +521,11 @@ function getShortcutsSections() {
                     description: 'Shortcut to zoom the camera out'
                 },
                 {
-                    id: 'shortcut_small_movement',
+                    id: 'shortcut_precision_modifier',
                     property: 'shortcutSmallMovement',
                     type: 'shortcut',
-                    label: 'Minimized Movements',
-                    description: 'Hold to move the joystick/zoom in smaller increments'
+                    label: 'Precision Modifier',
+                    description: 'Hold for slower joystick and zoom movement; View shortcuts select source cameras instead of switching views'
                 },
                 {
                     id: 'shortcut_lock_controls',
@@ -540,13 +540,6 @@ function getShortcutsSections() {
             id: 'cameraViews',
             title: 'Camera Views',
             items: [
-                {
-                    id: 'shortcut_camera_select',
-                    property: 'shortcutCameraSelect',
-                    type: 'shortcut',
-                    label: 'Camera Select',
-                    description: 'Hold while pressing 0-9 to select the source camera for the active view'
-                },
                 {
                     id: 'shortcut_camera1',
                     property: 'shortcutCamera1',
