@@ -26,6 +26,7 @@ Item {
         + (_inverted ? 180 : 0)
     property int  cameraSlot
     property int index
+    readonly property real compassScale: SVSettings.compassSize / 100
 
     QGCPalette { id: qgcPalette }
 
@@ -128,7 +129,7 @@ Item {
 
             QGCAttitudeWidget {
                 id:                     attitude
-                size:                   SVUnits.objectWidth * 1.4
+                size:                   SVUnits.objectWidth * 1.4 * root.compassScale
                 vehicle:                cameraVehicle
                 anchors.left:           parent.left
                 anchors.leftMargin:     SVUnits.bigMargin
@@ -139,7 +140,7 @@ Item {
                 id:                     compass
                 anchors.left:           attitude.right
                 anchors.leftMargin:     SVUnits.bigMargin
-                size:                   SVUnits.objectWidth * 1.4
+                size:                   SVUnits.objectWidth * 1.4 * root.compassScale
                 heading:                cameraVehicle.heading.rawValue
                 showBorder:             !SVSettings.simplifiedUserInterface
                 anchors.verticalCenter: parent.verticalCenter
@@ -166,7 +167,7 @@ Item {
 
             QGCAttitudeWidget {
                 id:                       attitude
-                size:                     SVUnits.objectWidth * 1.4
+                size:                     SVUnits.objectWidth * 1.4 * root.compassScale
                 vehicle:                  cameraVehicle
                 anchors.top:              parent.top
                 anchors.topMargin:        SVUnits.bigMargin
@@ -177,7 +178,7 @@ Item {
                 id:                       compass
                 anchors.top:              attitude.bottom
                 anchors.topMargin:        SVUnits.bigMargin
-                size:                     SVUnits.objectWidth * 1.4
+                size:                     SVUnits.objectWidth * 1.4 * root.compassScale
                 heading:                  cameraVehicle.heading.rawValue
                 showBorder:               !SVSettings.simplifiedUserInterface
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -190,8 +191,8 @@ Item {
 
         Item {
             // Container bound matching the horizontal/vertical backgrounds
-            width:  SVUnits.objectWidth * 1
-            height: SVUnits.objectWidth * 1
+            width:  SVUnits.objectWidth * root.compassScale
+            height: SVUnits.objectWidth * root.compassScale
 
             Rectangle {
                 id: border
@@ -199,8 +200,8 @@ Item {
                 anchors.bottom: combinedWidget.bottom
                 anchors.leftMargin: -SVUnits.lineWidth
                 anchors.bottomMargin: -SVUnits.lineWidth
-                width: SVUnits.objectWidth * 2 + SVUnits.lineWidth * 2
-                height: SVUnits.objectWidth * 2 + SVUnits.lineWidth * 2
+                width: combinedWidget.width + SVUnits.lineWidth * 2
+                height: combinedWidget.height + SVUnits.lineWidth * 2
                 color: "white"
                 radius: height / 2
                 visible: !SVSettings.simplifiedUserInterface
@@ -209,9 +210,9 @@ Item {
             Item {
                 id: combinedWidget
 
-                readonly property real compassRadius: SVUnits.objectWidth
-                readonly property real attitudeSize: SVUnits.objectWidth * 0.20
-                readonly property real attitudeSpacing: SVUnits.margin
+                readonly property real compassRadius: SVUnits.objectWidth * root.compassScale
+                readonly property real attitudeSize: SVUnits.objectWidth * 0.20 * root.compassScale
+                readonly property real attitudeSpacing: SVUnits.margin * root.compassScale
                 readonly property real totalAttitudeSize: attitudeSize + attitudeSpacing
 
                 width: compassRadius * 2

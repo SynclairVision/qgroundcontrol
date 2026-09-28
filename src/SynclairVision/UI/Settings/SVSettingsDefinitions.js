@@ -451,6 +451,23 @@ function getControlsSections() {
                     value: 10
                 }
             ]
+        },
+        {
+            id: 'compass',
+            title: 'Compass',
+            items: [
+                {
+                    id: 'compass_size',
+                    property: 'compassSize',
+                    type: 'slider',
+                    label: 'Size',
+                    description: 'Choose the size of the compass',
+                    min: 75,
+                    max: 200,
+                    step: 1,
+                    value: 100
+                }
+            ]
         }
     ]
 }

@@ -23,6 +23,7 @@ QtObject {
         simplifiedUserInterface: false,
         alignHud: true,
         compassType: "horizontal",
+        compassSize: 100,
         networkIPAdress: "192.168.4.60",
         networkProfiles: [
             {
@@ -134,6 +135,7 @@ QtObject {
         property alias simplifiedUserInterface: root.simplifiedUserInterface
         property alias alignHud: root.alignHud
         property alias compassType: root.compassType
+        property alias compassSize: root.compassSize
         property alias controlPanelPosition: root.controlPanelPosition
         property alias controlPanelInteraction: root.controlPanelInteraction
         property alias controlPanelPassiveOpacity: root.controlPanelPassiveOpacity
@@ -524,6 +526,7 @@ QtObject {
     property bool simplifiedUserInterface: false
     property bool alignHud: true
     property string compassType: "horizontal"
+    property int compassSize: 100
 
     //Control Panel
         property bool controlPanel: true
