@@ -208,31 +208,18 @@ Item {
     }
 
     function dispatchSourceCameraShortcut(key) {
-        if (!SVState.shortcutSmallMovementHeld) return false
-
-        const action = root.shortcutRegistry[key]
-        let cameraId = -1
-        switch (action) {
-        case root.actionCamera1:
-            cameraId = 1
-            break
-        case root.actionCamera2:
-            cameraId = 2
-            break
-        case root.actionCamera3:
-            cameraId = 3
-            break
-        case root.actionCamera4:
-            cameraId = 4
-            break
-        case root.actionCamera5:
-            cameraId = 5
-            break
-        default:
+        if (!SVState.shortcutSmallMovementHeld || key < Qt.Key_0 || key > Qt.Key_9) {
             return false
         }
+        if (!root.shortcutInputEligible || !SVState.shortcutsEnabled) {
+            return true
+        }
 
-        if (!root.isShortcutEnabled(key)) return true
+        const requestedCamera = key - Qt.Key_0
+        const availableCameras = root.flyView && root.flyView.digiview
+            ? root.flyView.digiview.videoOutputNumCameras : 0
+        const cameraId = requestedCamera > 0 && requestedCamera <= availableCameras
+            ? requestedCamera : 0
         SVState.setSelectedViewSourceCamera(cameraId)
         return true
     }
