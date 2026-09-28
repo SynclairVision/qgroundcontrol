@@ -30,8 +30,6 @@ constexpr int kRestartReconnectInitialDelayMs = 250;
 constexpr int kRestartReconnectMaximumDelayMs = 2000;
 constexpr uint8_t kDigiviewSystemId = 252;
 constexpr uint8_t kDigiviewComponentId = 66;
-constexpr uint8_t kCropCameraAutomaticWire = 1;
-constexpr uint8_t kCropCameraFirstExplicitWire = 2;
 constexpr uint32_t kCropCameraMagic = 0x43524F50U;
 
 void copyStringToCharBuf(const QString& src, char* dest, int size)
@@ -820,7 +818,7 @@ bool DigiviewManager::_sendAutomaticViewSourceCameras(uint8_t viewCount)
         payload.cam_id = viewId;
         payload.targeting_mode = std::numeric_limits<uint8_t>::max();
         payload.stabilization_flags = 0x08U;
-        payload.crop_camera = kCropCameraAutomaticWire;
+        payload.crop_camera = 0U;
         payload.crop_camera_magic = kCropCameraMagic;
 
         if (!_sendCamTargetingParameters(payload)) {
@@ -845,8 +843,7 @@ bool DigiviewManager::setViewSourceCamera(int viewId, int cameraId)
     payload.cam_id = static_cast<uint8_t>(viewId);
     payload.targeting_mode = std::numeric_limits<uint8_t>::max();
     payload.stabilization_flags = 0x08U;
-    payload.crop_camera = cameraId == 0 ? kCropCameraAutomaticWire
-        : static_cast<uint8_t>(kCropCameraFirstExplicitWire + cameraId - 1);
+    payload.crop_camera = static_cast<uint8_t>(cameraId);
     payload.crop_camera_magic = kCropCameraMagic;
     return _sendCamTargetingParameters(payload);
 }
