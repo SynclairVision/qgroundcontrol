@@ -21,7 +21,6 @@ namespace {
 constexpr uint8_t kSyntheticSystemId = 252;
 constexpr uint8_t kSyntheticComponentId = 66;
 constexpr float kOneShotIntervalUs = -1000.0F;
-constexpr uint32_t kCropCameraMagic = 0x43524F50U;
 constexpr char kSupportedParameterGroups[] =
     "SYSTEM_STATUS, AI, MODEL (GET only), VIDEO_OUTPUT, CAPTURE, DETECTION, TRACKED_DETECTION (GET only), "
     "CAM_TARGETING, VIEW_CROP_CAMERA, CAM_OPTICS_AND_CONTROL, SENSOR, SINGLE_TARGET_TRACKING, and CALIBRATION";
@@ -138,7 +137,7 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
         parameterType = VIEW_CROP_CAMERA;
         break;
     case MAVLINK_MSG_ID_CALIBRATION_PARAMETERS:
-        if (!std::isfinite(command.param3) || (command.param3 < 0.0F)
+        if (!std::isfinite(command.param3) || (command.param3 <= 0.0F)
             || (command.param3 > static_cast<float>(std::numeric_limits<uint8_t>::max()))) {
             error = QStringLiteral("Invalid DigiView CALIBRATION camera id %1").arg(command.param3);
             return false;
@@ -160,7 +159,8 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
         pack_calibration_parameters(nativeMessage, static_cast<uint8_t>(command.param3), CALIBRATION_CMD_NONE,
                                     CALIBRATION_STATUS_NOT_STARTED, 0, 0);
     } else if (parameterType == VIEW_CROP_CAMERA) {
-        pack_view_crop_camera_parameters(nativeMessage, nullptr, static_cast<uint8_t>(command.param3), -1);
+        pack_view_crop_camera_parameters(
+            nativeMessage, nullptr, static_cast<uint8_t>(command.param3), CAM_TARGETING_CROP_CAMERA_AUTOMATIC);
     }
     if ((command.param2 == kOneShotIntervalUs) || (command.param2 == 0.0F)) {
         nativeMessage.interval_ms = 0;
@@ -258,7 +258,7 @@ QByteArray DigiviewLegacyTcpAdapter::encode(const mavlink_message_t& mavlinkMess
         pack_video_output_parameters(nativeMessage, parameters.stream_name, parameters.width, parameters.height,
                                      parameters.fps, parameters.layout_mode, parameters.detection_overlay_mode,
                                      parameters.num_user_views, views.data(), detectionOverlay,
-                                     parameters.single_detection_size);
+                                     parameters.single_detection_size, parameters.num_cameras);
         break;
     }
     case MAVLINK_MSG_ID_CAPTURE_PARAMETERS: {
@@ -312,15 +312,15 @@ QByteArray DigiviewLegacyTcpAdapter::encode(const mavlink_message_t& mavlinkMess
                                           parameters.y_offset, parameters.target_latitude,
                                           parameters.target_longitude, parameters.target_altitude,
                                            parameters.track_id, parameters.view_id, parameters.lock_target != 0U,
-                                           parameters.crop_camera_magic == kCropCameraMagic
-                                               ? cam_targeting_crop_camera_from_wire(parameters.crop_camera)
+                                           parameters.crop_camera_magic == CAM_TARGETING_CROP_CAMERA_MAGIC
+                                               ? static_cast<int32_t>(parameters.crop_camera)
                                                : CAM_TARGETING_CROP_CAMERA_NO_CHANGE);
         break;
     }
     case MAVLINK_MSG_ID_VIEW_CROP_CAMERA_PARAMETERS: {
         mavlink_view_crop_camera_parameters_t parameters {};
         mavlink_msg_view_crop_camera_parameters_decode(&mavlinkMessage, &parameters);
-        if (parameters.camera_id < -1) {
+        if (parameters.camera_id < CAM_TARGETING_CROP_CAMERA_AUTOMATIC) {
             error = QStringLiteral("Invalid DigiView TCP view crop camera id %1").arg(parameters.camera_id);
             return {};
         }
@@ -360,6 +360,10 @@ QByteArray DigiviewLegacyTcpAdapter::encode(const mavlink_message_t& mavlinkMess
     case MAVLINK_MSG_ID_CALIBRATION_PARAMETERS: {
         mavlink_calibration_parameters_t parameters {};
         mavlink_msg_calibration_parameters_decode(&mavlinkMessage, &parameters);
+        if (parameters.cam_id == 0U) {
+            error = QStringLiteral("Invalid DigiView TCP calibration camera id 0");
+            return {};
+        }
         if (parameters.calib_command >= NUM_CALIBRATION_CMDS) {
             error = QStringLiteral("Invalid DigiView TCP calibration command %1").arg(parameters.calib_command);
             return {};
@@ -520,6 +524,7 @@ DigiviewLegacyTcpAdapter::DecodeResult DigiviewLegacyTcpAdapter::decode(
         parameters.detection_overlay_w = nativeParameters.detection_overlay_box.w;
         parameters.detection_overlay_h = nativeParameters.detection_overlay_box.h;
         parameters.single_detection_size = nativeParameters.single_detection_size;
+        parameters.num_cameras = nativeParameters.num_cameras;
         mavlink_msg_video_output_parameters_encode(kSyntheticSystemId, kSyntheticComponentId, &mavlinkMessage,
                                                    &parameters);
         break;
@@ -605,8 +610,12 @@ DigiviewLegacyTcpAdapter::DecodeResult DigiviewLegacyTcpAdapter::decode(
         parameters.track_id = nativeParameters.track_id;
         parameters.view_id = nativeParameters.view_id;
         parameters.lock_target = nativeParameters.lock_target ? 1U : 0U;
-        parameters.crop_camera = cam_targeting_crop_camera_to_wire(nativeParameters.crop_camera);
-        parameters.crop_camera_magic = kCropCameraMagic;
+        const bool cropCameraUpdate =
+            nativeParameters.crop_camera != CAM_TARGETING_CROP_CAMERA_NO_CHANGE;
+        parameters.crop_camera =
+            cropCameraUpdate ? static_cast<uint8_t>(nativeParameters.crop_camera) : 0U;
+        parameters.crop_camera_magic =
+            cropCameraUpdate ? CAM_TARGETING_CROP_CAMERA_MAGIC : 0U;
         mavlink_msg_cam_targeting_parameters_encode(kSyntheticSystemId, kSyntheticComponentId, &mavlinkMessage,
                                                     &parameters);
         break;
