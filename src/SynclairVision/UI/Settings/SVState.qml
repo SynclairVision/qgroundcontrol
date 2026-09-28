@@ -504,6 +504,20 @@ QtObject {
         cameraOverlays = overlays
     }
 
+    function setSelectedViewSourceCamera(cameraId) {
+        if (!digiview || !digiview.sessionActive || cameraSelected < 0 || cameraSelected >= digiview.videoOutputNumUserViews) return false
+        const sourceCamera = cameraId > 0 && cameraId <= digiview.videoOutputNumCameras ? cameraId : 0
+        if (!digiview.setViewSourceCamera(cameraSelected, sourceCamera)) return false
+        const nextSources = viewSourceCameras.slice()
+        nextSources[cameraSelected] = sourceCamera
+        viewSourceCameras = nextSources
+        return true
+    }
+
+    function resetViewSourceCameras() {
+        viewSourceCameras = [0, 0, 0, 0]
+    }
+
     function setCamera(cameraId) {
         if (cursorTrackingSessionActive) {
             return
@@ -655,6 +669,9 @@ QtObject {
     property bool shortcutZoomOutHeld: false
     property bool shortcutSmallMovementHeld: false
     property int  cameraSelected: -1
+    property var viewSourceCameras: [0, 0, 0, 0]
+    readonly property int activeViewSourceCamera: cameraSelected >= 0 && cameraSelected < viewSourceCameras.length
+        ? viewSourceCameras[cameraSelected] : 0
     property bool record: false
     property real recordStartTimeMs: 0
     property string recordElapsedText: "00:00:00"
@@ -735,7 +752,12 @@ QtObject {
             root.synchronizeCameraTrackingStates()
         }
 
+        function onSessionActiveChanged() {
+            if (!digiview.sessionActive) root.resetViewSourceCameras()
+        }
+
         function onVideoOutputLayoutModeChanged() {
+            root.resetViewSourceCameras()
             const layoutMode = digiview.videoOutputLayoutMode
             if (layoutMode >= DigiviewProtocol.LayoutSingleCamera
                     && layoutMode <= DigiviewProtocol.LayoutMaximum) {
