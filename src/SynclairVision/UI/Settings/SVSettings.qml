@@ -88,6 +88,7 @@ QtObject {
         shortcutCamera3: Qt.Key_3,
         shortcutCamera4: Qt.Key_4,
         shortcutCamera5: 0,
+        shortcutCameraSelect: Qt.Key_Shift,
         shortcutNextCamera: Qt.Key_V,
         shortcutPreviousCamera: 0,
         shortcutDeselectCamera: Qt.Key_C,
@@ -174,6 +175,7 @@ QtObject {
         property alias shortcutCamera3: root.shortcutCamera3
         property alias shortcutCamera4: root.shortcutCamera4
         property alias shortcutCamera5: root.shortcutCamera5
+        property alias shortcutCameraSelect: root.shortcutCameraSelect
         property alias shortcutNextCamera: root.shortcutNextCamera
         property alias shortcutPreviousCamera: root.shortcutPreviousCamera
         property alias shortcutDeselectCamera: root.shortcutDeselectCamera
@@ -569,6 +571,7 @@ QtObject {
         property int shortcutCamera3: Qt.Key_3
         property int shortcutCamera4: Qt.Key_4
         property int shortcutCamera5: 0
+        property int shortcutCameraSelect: Qt.Key_Shift
         property int shortcutNextCamera: Qt.Key_V
         property int shortcutPreviousCamera: 0
         property int shortcutDeselectCamera: Qt.Key_C
@@ -593,28 +596,30 @@ QtObject {
         property int shortcutRecord: Qt.Key_R
 
         property int shortcutSchemaVersion: 0
-        readonly property int currentShortcutSchemaVersion: 2
+        readonly property int currentShortcutSchemaVersion: 3
 
         function migrateShortcutsIfNeeded() {
-            if (shortcutSchemaVersion >= currentShortcutSchemaVersion) {
-                return
+            if (shortcutSchemaVersion < 2) {
+                shortcutPitchUp = Qt.Key_W
+                shortcutPitchDown = Qt.Key_S
+                shortcutJawLeft = Qt.Key_A
+                shortcutJawRight = Qt.Key_D
+                shortcutZoomIn = Qt.Key_Q
+                shortcutZoomOut = Qt.Key_E
+                shortcutLockControls = 0
+                shortcutLockTarget = Qt.Key_J
+                shortcutSynclair = Qt.Key_O
+                shortcutToolbar = Qt.Key_B
+                shortcutNextCamera = Qt.Key_V
+                shortcutDeselectCamera = Qt.Key_C
+                shortcutCamera5 = 0
+                shortcutSchemaVersion = 2
             }
 
-            shortcutPitchUp = Qt.Key_W
-            shortcutPitchDown = Qt.Key_S
-            shortcutJawLeft = Qt.Key_A
-            shortcutJawRight = Qt.Key_D
-            shortcutZoomIn = Qt.Key_Q
-            shortcutZoomOut = Qt.Key_E
-            shortcutLockControls = 0
-            shortcutLockTarget = Qt.Key_J
-            shortcutSynclair = Qt.Key_O
-            shortcutToolbar = Qt.Key_B
-            shortcutNextCamera = Qt.Key_V
-            shortcutDeselectCamera = Qt.Key_C
-            shortcutCamera5 = 0
-
-            shortcutSchemaVersion = currentShortcutSchemaVersion
+            if (shortcutSchemaVersion < 3) {
+                shortcutCameraSelect = Qt.Key_Shift
+                shortcutSchemaVersion = 3
+            }
         }
 
 //---------------------------------

@@ -541,6 +541,13 @@ function getShortcutsSections() {
             title: 'Camera Views',
             items: [
                 {
+                    id: 'shortcut_camera_select',
+                    property: 'shortcutCameraSelect',
+                    type: 'shortcut',
+                    label: 'Camera Select',
+                    description: 'Hold while pressing 0-9 to select the source camera for the active view'
+                },
+                {
                     id: 'shortcut_camera1',
                     property: 'shortcutCamera1',
                     type: 'shortcut',

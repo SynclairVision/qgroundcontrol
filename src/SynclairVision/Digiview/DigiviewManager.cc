@@ -806,30 +806,6 @@ bool DigiviewManager::_sendVideoOutputParameters(const mavlink_video_output_para
     return _sendMessage(msg);
 }
 
-bool DigiviewManager::_sendAutomaticViewSourceCameras(uint8_t viewCount)
-{
-    if ((viewCount == 0U) || (viewCount > 4U)) {
-        return false;
-    }
-
-    for (uint8_t viewId = 0; viewId < viewCount; ++viewId) {
-        mavlink_cam_targeting_parameters_t payload {};
-        copyStringToCharBuf(_streamName, payload.stream_name, 16);
-        payload.cam_id = viewId;
-        payload.targeting_mode = std::numeric_limits<uint8_t>::max();
-        payload.stabilization_flags = 0x08U;
-        payload.crop_camera = 0U;
-        payload.crop_camera_magic = kCropCameraMagic;
-
-        if (!_sendCamTargetingParameters(payload)) {
-            qCWarning(DigiviewManagerLog) << "Failed to select automatic source camera for view" << viewId;
-            return false;
-        }
-    }
-
-    return true;
-}
-
 bool DigiviewManager::setViewSourceCamera(int viewId, int cameraId)
 {
     if (!_trafficEligible() || (viewId < 0) || (viewId >= _videoOutputNumUserViews)
@@ -1886,10 +1862,6 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
             _videoOutputTransaction.reset();
             _restartVideoConfirmed();
         }
-        if ((!_automaticViewSourceLayoutMode || (*_automaticViewSourceLayoutMode != payload.layout_mode))
-            && _sendAutomaticViewSourceCameras(payload.num_user_views)) {
-            _automaticViewSourceLayoutMode = payload.layout_mode;
-        }
         break;
     }
     case MAVLINK_MSG_ID_CAPTURE_PARAMETERS: {
@@ -2732,7 +2704,6 @@ void DigiviewManager::_resetRemoteSession()
     _videoOutputDetectionOverlayRect.clear();
     _videoOutputSingleDetectionSize = 0;
     _videoOutputParameters = {};
-    _automaticViewSourceLayoutMode.reset();
 
     if (hasVideoOutputParametersChangedValue) {
         emit hasVideoOutputParametersChanged();

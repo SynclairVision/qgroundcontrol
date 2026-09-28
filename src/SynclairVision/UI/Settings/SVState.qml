@@ -757,7 +757,6 @@ QtObject {
         }
 
         function onVideoOutputLayoutModeChanged() {
-            root.resetViewSourceCameras()
             const layoutMode = digiview.videoOutputLayoutMode
             if (layoutMode >= DigiviewProtocol.LayoutSingleCamera
                     && layoutMode <= DigiviewProtocol.LayoutMaximum) {
