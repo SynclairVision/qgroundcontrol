@@ -97,6 +97,7 @@ public:
 signals:
     void languageChanged(const QLocale &locale);
     void unacceptedKeyEvent(int key, int modifiers, bool pressed, bool autoRepeat);
+    void unacceptedKeyEventDetailed(int key, int modifiers, quint32 nativeScanCode, bool pressed, bool autoRepeat);
 
 public slots:
     void qmlAttemptWindowClose();

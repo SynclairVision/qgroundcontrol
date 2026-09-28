@@ -48,6 +48,7 @@ Item {
     readonly property int zoomInRole: 4
     readonly property int zoomOutRole: 5
     readonly property int smallMovementRole: 6
+    property int precisionModifierNativeScanCode: 0
     property var heldVisualKeys: ({})
     property var heldVisualRoleCounts: [0, 0, 0, 0, 0, 0, 0]
     readonly property bool shortcutInputEligible: root.visible
@@ -207,20 +208,90 @@ Item {
         return registry
     }
 
-    function dispatchSourceCameraShortcut(key) {
-        if (!SVState.shortcutSmallMovementHeld || key < Qt.Key_0 || key > Qt.Key_9) {
+    function normalizedShortcutKey(key, nativeScanCode) {
+        if (SVSettings.shortcutSmallMovement !== Qt.Key_Shift
+                || (key >= Qt.Key_0 && key <= Qt.Key_9)) {
+            return key
+        }
+
+        // Shift changes number-row keys into layout-specific symbols. Use the physical
+        // scan code to recover the unshifted number key instead of hard-coding symbols.
+        if (root.precisionModifierNativeScanCode === 42
+                || root.precisionModifierNativeScanCode === 54) {
+            if (nativeScanCode >= 2 && nativeScanCode <= 10) {
+                return Qt.Key_1 + nativeScanCode - 2
+            }
+            if (nativeScanCode === 11) {
+                return Qt.Key_0
+            }
+        }
+
+        if (root.precisionModifierNativeScanCode === 50
+                || root.precisionModifierNativeScanCode === 62) {
+            if (nativeScanCode >= 10 && nativeScanCode <= 18) {
+                return Qt.Key_1 + nativeScanCode - 10
+            }
+            if (nativeScanCode === 19) {
+                return Qt.Key_0
+            }
+        }
+
+        if (Qt.platform.os === "osx") {
+            const macNumberKeys = ({
+                18: Qt.Key_1,
+                19: Qt.Key_2,
+                20: Qt.Key_3,
+                21: Qt.Key_4,
+                23: Qt.Key_5,
+                22: Qt.Key_6,
+                26: Qt.Key_7,
+                28: Qt.Key_8,
+                25: Qt.Key_9,
+                29: Qt.Key_0
+            })
+            if (macNumberKeys[nativeScanCode] !== undefined) {
+                return macNumberKeys[nativeScanCode]
+            }
+        }
+
+        return key
+    }
+
+    function dispatchSourceCameraShortcut(key, nativeScanCode) {
+        if (!SVState.shortcutSmallMovementHeld) {
             return false
         }
         if (!root.shortcutInputEligible || !SVState.shortcutsEnabled) {
             return true
         }
 
-        const requestedCamera = key - Qt.Key_0
+        const shortcutKey = root.normalizedShortcutKey(key, nativeScanCode)
+        const action = root.shortcutRegistry[shortcutKey]
+        let cameraId = -1
+        switch (action) {
+        case root.actionCamera1:
+            cameraId = 1
+            break
+        case root.actionCamera2:
+            cameraId = 2
+            break
+        case root.actionCamera3:
+            cameraId = 3
+            break
+        case root.actionCamera4:
+            cameraId = 4
+            break
+        case root.actionCamera5:
+            cameraId = 5
+            break
+        default:
+            return false
+        }
+
         const availableCameras = root.flyView && root.flyView.digiview
             ? root.flyView.digiview.videoOutputNumCameras : 0
-        const cameraId = requestedCamera > 0 && requestedCamera <= availableCameras
-            ? requestedCamera : 0
-        SVState.setSelectedViewSourceCamera(cameraId)
+        SVState.setSelectedViewSourceCamera(
+            cameraId <= availableCameras ? cameraId : 0)
         return true
     }
 
@@ -287,6 +358,7 @@ Item {
         root.stopShortcutTimers()
         root.heldVisualKeys = ({})
         root.heldVisualRoleCounts = [0, 0, 0, 0, 0, 0, 0]
+        root.precisionModifierNativeScanCode = 0
         SVState.shortcutJoystickHeld = [false, false, false, false]
         SVState.shortcutZoomInHeld = false
         SVState.shortcutZoomOutHeld = false
@@ -356,16 +428,22 @@ Item {
     Connections {
         target: QGroundControl.application
 
-        function onUnacceptedKeyEvent(key, modifiers, pressed, autoRepeat) {
+        function onUnacceptedKeyEventDetailed(key, modifiers, nativeScanCode, pressed, autoRepeat) {
             if (pressed) {
                 if (!autoRepeat) {
+                    if (key === SVSettings.shortcutSmallMovement) {
+                        root.precisionModifierNativeScanCode = nativeScanCode
+                    }
                     root.trackVisualKeyPress(key)
-                    if (!root.dispatchSourceCameraShortcut(key)) {
+                    if (!root.dispatchSourceCameraShortcut(key, nativeScanCode)) {
                         root.dispatch(key)
                     }
                 }
             } else if (!autoRepeat) {
                 root.trackVisualKeyRelease(key)
+                if (key === SVSettings.shortcutSmallMovement) {
+                    root.precisionModifierNativeScanCode = 0
+                }
             }
         }
     }

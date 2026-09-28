@@ -780,6 +780,8 @@ bool QGCApplication::notify(QObject* receiver, QEvent* event)
         if (released || (pressed && !event->isAccepted())) {
             emit unacceptedKeyEvent(keyEvent->key(), keyEvent->modifiers().toInt(), pressed,
                                     keyEvent->isAutoRepeat());
+            emit unacceptedKeyEventDetailed(keyEvent->key(), keyEvent->modifiers().toInt(),
+                                            keyEvent->nativeScanCode(), pressed, keyEvent->isAutoRepeat());
         }
     }
 
