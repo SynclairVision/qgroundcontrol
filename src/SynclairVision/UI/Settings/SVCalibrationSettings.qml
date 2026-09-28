@@ -17,7 +17,7 @@ Item {
 
     readonly property var digiview: SVState.digiview
     property bool localMonitorActive: false
-    property int monitoredCamera: 0
+    property int monitoredCamera: 1
     property int monitoredCommand: DigiviewProtocol.CalibrationCommandStartMag
     property int monitorState: SVCalibrationSettings.MonitorState.Idle
     property int calibrationStatus: DigiviewProtocol.CalibrationStatusNotStarted
@@ -276,10 +276,10 @@ Item {
                                 id: cameraSelector
 
                                 Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 16
-                                from: 0
-                                to: 5
-                                value: 0
-                                enabled: !root.localMonitorActive
+                                from: 1
+                                to: Math.max(1, root.digiview ? root.digiview.videoOutputNumCameras : 0)
+                                value: 1
+                                enabled: !root.localMonitorActive && !!root.digiview && root.digiview.videoOutputNumCameras > 0
                             }
 
                             QGCLabel { text: qsTr("Calibration") }
@@ -301,7 +301,8 @@ Item {
                         QGCButton {
                             text: root.localMonitorActive ? qsTr("Stop") : qsTr("Start")
                             primary: true
-                            enabled: !!root.digiview && root.digiview.sessionActive && !root.stopPending
+                            enabled: !!root.digiview && root.digiview.sessionActive
+                                && root.digiview.videoOutputNumCameras > 0 && !root.stopPending
                             onClicked: root.localMonitorActive ? root.stopCalibration() : root.startCalibration()
                         }
 

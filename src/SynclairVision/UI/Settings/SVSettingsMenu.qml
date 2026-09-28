@@ -193,6 +193,13 @@ Item {
             return options
         }
 
+        if (settingData.optionsSource === 'sourceCameras') {
+            const options = [{ label: 'Auto', value: 0 }]
+            const count = root.digiview ? root.digiview.videoOutputNumCameras : 0
+            for (let cameraId = 1; cameraId <= count; ++cameraId) options.push({ label: 'Camera ' + cameraId, value: cameraId })
+            return options
+        }
+
         return settingData.options ? settingData.options : []
     }
 
@@ -420,6 +427,12 @@ Item {
             return 0
         }
 
+        if (settingData.id === 'sourceCamera') {
+            const currentValue = SVState.activeViewSourceCamera
+            for (let index = 0; index < options.length; ++index) if (options[index].value === currentValue) return index
+            return 0
+        }
+
         if (useSettingsBridge(settingData)) {
             const currentValue = displayedSettingValue(settingData.property, settingData.digiviewParameterGroup)
 
@@ -445,6 +458,11 @@ Item {
         if (settingData.id === 'resolution') {
             SVSettings.videoResolutionWidth = value.width
             SVSettings.videoResolutionHeight = value.height
+            return
+        }
+
+        if (settingData.id === 'sourceCamera') {
+            SVState.setSelectedViewSourceCamera(value)
             return
         }
 
@@ -670,6 +688,11 @@ Item {
     }
 
     function isSettingEnabled(settingData) {
+        if (settingData && settingData.id === 'sourceCamera') {
+            return !!root.digiview && root.digiview.sessionActive && root.digiview.videoOutputNumCameras > 0
+                && SVState.cameraSelected >= 0 && SVState.cameraSelected < root.digiview.videoOutputNumUserViews
+        }
+
         if (settingData && settingData.enabled === false) {
             return false
         }

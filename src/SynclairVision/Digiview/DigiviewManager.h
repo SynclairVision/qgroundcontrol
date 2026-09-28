@@ -58,6 +58,7 @@ class DigiviewManager : public QObject
     Q_PROPERTY(int videoOutputDetectionOverlayMode READ videoOutputDetectionOverlayMode NOTIFY
                videoOutputDetectionOverlayModeChanged)
     Q_PROPERTY(int videoOutputNumUserViews READ videoOutputNumUserViews NOTIFY videoOutputNumUserViewsChanged)
+    Q_PROPERTY(int videoOutputNumCameras READ videoOutputNumCameras NOTIFY videoOutputNumCamerasChanged)
     Q_PROPERTY(QVariantList videoOutputViews READ videoOutputViews NOTIFY videoOutputViewsChanged)
     Q_PROPERTY(QVariantMap videoOutputDetectionOverlayRect READ videoOutputDetectionOverlayRect NOTIFY
                videoOutputDetectionOverlayRectChanged)
@@ -139,6 +140,7 @@ public:
         return _desiredVideoOutputDetectionOverlayMode.value_or(_videoOutputDetectionOverlayMode);
     }
     int videoOutputNumUserViews() const { return _videoOutputNumUserViews; }
+    int videoOutputNumCameras() const { return _videoOutputNumCameras; }
     QVariantList videoOutputViews() const { return _videoOutputViews; }
     QVariantMap videoOutputDetectionOverlayRect() const { return _videoOutputDetectionOverlayRect; }
     int videoOutputSingleDetectionSize() const { return _videoOutputSingleDetectionSize; }
@@ -239,6 +241,7 @@ public:
     Q_INVOKABLE bool lockCurrentTarget(int cameraSlot);
     Q_INVOKABLE bool clearCurrentTarget(int cameraSlot);
     Q_INVOKABLE bool sendCalibrationParameters(int cameraId, int calibrationCommand);
+    Q_INVOKABLE bool setViewSourceCamera(int viewId, int cameraId);
     Q_INVOKABLE bool sendNavigationParameters(
         float altitude, float visual_lat, float visual_lon,
         float next_waypoint_target_yaw, float next_waypoint_target_pitch, float next_waypoint_target_roll,
@@ -279,6 +282,7 @@ signals:
     void videoOutputLayoutModeChanged();
     void videoOutputDetectionOverlayModeChanged();
     void videoOutputNumUserViewsChanged();
+    void videoOutputNumCamerasChanged();
     void videoOutputViewsChanged();
     void videoOutputDetectionOverlayRectChanged();
     void videoOutputSingleDetectionSizeChanged();
@@ -512,6 +516,7 @@ private:
     int _videoOutputDetectionOverlayMode = Layout::DET_OVERLAY_NONE;
     std::optional<uint8_t> _desiredVideoOutputDetectionOverlayMode;
     int _videoOutputNumUserViews = 0;
+    int _videoOutputNumCameras = 0;
     QVariantList _videoOutputViews;
     QVariantMap _videoOutputDetectionOverlayRect;
     int _videoOutputSingleDetectionSize = 0;

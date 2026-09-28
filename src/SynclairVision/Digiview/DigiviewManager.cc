@@ -30,7 +30,6 @@ constexpr int kRestartReconnectInitialDelayMs = 250;
 constexpr int kRestartReconnectMaximumDelayMs = 2000;
 constexpr uint8_t kDigiviewSystemId = 252;
 constexpr uint8_t kDigiviewComponentId = 66;
-constexpr uint8_t kCropCameraAutomaticWire = 1;
 constexpr uint32_t kCropCameraMagic = 0x43524F50U;
 
 void copyStringToCharBuf(const QString& src, char* dest, int size)
@@ -763,8 +762,8 @@ bool DigiviewManager::requestTrackedDetectionParameters()
 
 bool DigiviewManager::requestCalibrationParameters(int cameraId)
 {
-    if ((cameraId < 0) || (static_cast<size_t>(cameraId) >= kMaxCameras)) {
-        emit commandRejected(tr("The requested calibration camera is invalid and was not sent."));
+    if ((cameraId <= 0) || (cameraId > _videoOutputNumCameras)) {
+        emit commandRejected(tr("The requested calibration camera is unavailable and was not sent."));
         return false;
     }
 
@@ -801,7 +800,8 @@ bool DigiviewManager::_sendVideoOutputParameters(const mavlink_video_output_para
                                 << "detectionOverlay" << "(" << payload.detection_overlay_x << ","
                                 << payload.detection_overlay_y << "," << payload.detection_overlay_w << ","
                                 << payload.detection_overlay_h << ")"
-                                << "singleDetectionSize" << payload.single_detection_size;
+                                << "singleDetectionSize" << payload.single_detection_size
+                                    << "numCameras" << payload.num_cameras;
 
     return _sendMessage(msg);
 }
@@ -818,7 +818,7 @@ bool DigiviewManager::_sendAutomaticViewSourceCameras(uint8_t viewCount)
         payload.cam_id = viewId;
         payload.targeting_mode = std::numeric_limits<uint8_t>::max();
         payload.stabilization_flags = 0x08U;
-        payload.crop_camera = kCropCameraAutomaticWire;
+        payload.crop_camera = 0U;
         payload.crop_camera_magic = kCropCameraMagic;
 
         if (!_sendCamTargetingParameters(payload)) {
@@ -828,6 +828,24 @@ bool DigiviewManager::_sendAutomaticViewSourceCameras(uint8_t viewCount)
     }
 
     return true;
+}
+
+bool DigiviewManager::setViewSourceCamera(int viewId, int cameraId)
+{
+    if (!_trafficEligible() || (viewId < 0) || (viewId >= _videoOutputNumUserViews)
+        || (cameraId < 0) || (cameraId > _videoOutputNumCameras)) {
+        emit commandRejected(tr("The requested source camera is unavailable and was not sent."));
+        return false;
+    }
+
+    mavlink_cam_targeting_parameters_t payload {};
+    copyStringToCharBuf(_streamName, payload.stream_name, 16);
+    payload.cam_id = static_cast<uint8_t>(viewId);
+    payload.targeting_mode = std::numeric_limits<uint8_t>::max();
+    payload.stabilization_flags = 0x08U;
+    payload.crop_camera = static_cast<uint8_t>(cameraId);
+    payload.crop_camera_magic = kCropCameraMagic;
+    return _sendCamTargetingParameters(payload);
 }
 
 bool DigiviewManager::sendCaptureParameters(
@@ -1405,7 +1423,7 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
 
 bool DigiviewManager::sendCalibrationParameters(int cameraId, int calibrationCommand)
 {
-    if ((cameraId < 0) || (static_cast<size_t>(cameraId) >= kMaxCameras)
+    if ((cameraId <= 0) || (cameraId > _videoOutputNumCameras)
         || (calibrationCommand < CALIBRATION_CMD_NONE) || (calibrationCommand >= NUM_CALIBRATION_CMDS)) {
         emit commandRejected(tr("The requested DigiView calibration command is invalid and was not sent."));
         return false;
@@ -1677,7 +1695,8 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
 
         const uint8_t expectedUserViewCount = userViewCountForLayout(payload.layout_mode);
         if ((expectedUserViewCount == 0U) || (payload.num_user_views != expectedUserViewCount)
-            || (payload.detection_overlay_mode > Layout::DET_OVERLAY_MAX)) {
+            || (payload.detection_overlay_mode > Layout::DET_OVERLAY_MAX)
+            || (payload.num_cameras > kMaxCameras)) {
             qCWarning(DigiviewManagerLog) << "Ignoring invalid VIDEO_OUTPUT_PARAMETERS"
                                           << "layoutMode" << payload.layout_mode
                                           << "detectionOverlayMode" << payload.detection_overlay_mode
@@ -1716,7 +1735,8 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
                                     << "detectionOverlay" << "(" << payload.detection_overlay_x << ","
                                     << payload.detection_overlay_y << "," << payload.detection_overlay_w << ","
                                     << payload.detection_overlay_h << ")"
-                                    << "singleDetectionSize" << payload.single_detection_size;
+                                    << "singleDetectionSize" << payload.single_detection_size
+                                    << "numCameras" << payload.num_cameras;
         QVector<int> viewsX;
         QVector<int> viewsY;
         QVector<int> viewsW;
@@ -1754,6 +1774,7 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         const int layoutMode = payload.layout_mode;
         const int detectionOverlayMode = payload.detection_overlay_mode;
         const int numUserViews = payload.num_user_views;
+        const int numCameras = payload.num_cameras;
         const int singleDetectionSize = payload.single_detection_size;
         const int previousEffectiveDetectionOverlayMode = videoOutputDetectionOverlayMode();
         const bool completesVideoOutputTransaction = [&] {
@@ -1780,6 +1801,7 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         const bool videoOutputFpsChangedValue = _videoOutputFps != fps;
         const bool videoOutputLayoutModeChangedValue = _videoOutputLayoutMode != layoutMode;
         const bool videoOutputNumUserViewsChangedValue = _videoOutputNumUserViews != numUserViews;
+        const bool videoOutputNumCamerasChangedValue = _videoOutputNumCameras != numCameras;
         const bool videoOutputViewsChangedValue = _videoOutputViews != views;
         const bool videoOutputDetectionOverlayRectChangedValue =
             _videoOutputDetectionOverlayRect != detectionOverlayRect;
@@ -1794,6 +1816,7 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         _videoOutputLayoutMode = layoutMode;
         _videoOutputDetectionOverlayMode = detectionOverlayMode;
         _videoOutputNumUserViews = numUserViews;
+        _videoOutputNumCameras = numCameras;
         _videoOutputViews = views;
         _videoOutputDetectionOverlayRect = detectionOverlayRect;
         _videoOutputSingleDetectionSize = singleDetectionSize;
@@ -1827,6 +1850,9 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         }
         if (videoOutputNumUserViewsChangedValue) {
             emit videoOutputNumUserViewsChanged();
+        }
+        if (videoOutputNumCamerasChangedValue) {
+            emit videoOutputNumCamerasChanged();
         }
         if (videoOutputViewsChangedValue) {
             emit videoOutputViewsChanged();
@@ -2687,6 +2713,7 @@ void DigiviewManager::_resetRemoteSession()
     const bool videoOutputDetectionOverlayModeChangedValue =
         videoOutputDetectionOverlayMode() != Layout::DET_OVERLAY_NONE;
     const bool videoOutputNumUserViewsChangedValue = _videoOutputNumUserViews != 0;
+    const bool videoOutputNumCamerasChangedValue = _videoOutputNumCameras != 0;
     const bool videoOutputViewsChangedValue = !_videoOutputViews.isEmpty();
     const bool videoOutputDetectionOverlayRectChangedValue = !_videoOutputDetectionOverlayRect.isEmpty();
     const bool videoOutputSingleDetectionSizeChangedValue = _videoOutputSingleDetectionSize != 0;
@@ -2700,6 +2727,7 @@ void DigiviewManager::_resetRemoteSession()
     _videoOutputDetectionOverlayMode = Layout::DET_OVERLAY_NONE;
     _desiredVideoOutputDetectionOverlayMode.reset();
     _videoOutputNumUserViews = 0;
+    _videoOutputNumCameras = 0;
     _videoOutputViews.clear();
     _videoOutputDetectionOverlayRect.clear();
     _videoOutputSingleDetectionSize = 0;
@@ -2729,6 +2757,9 @@ void DigiviewManager::_resetRemoteSession()
     }
     if (videoOutputNumUserViewsChangedValue) {
         emit videoOutputNumUserViewsChanged();
+    }
+    if (videoOutputNumCamerasChangedValue) {
+        emit videoOutputNumCamerasChanged();
     }
     if (videoOutputViewsChangedValue) {
         emit videoOutputViewsChanged();

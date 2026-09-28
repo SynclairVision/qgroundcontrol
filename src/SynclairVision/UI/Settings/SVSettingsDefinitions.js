@@ -819,6 +819,13 @@ function getDevSections() {
             title: 'Camera',
             items: [
                 {
+                    id: 'sourceCamera',
+                    type: 'dropdown',
+                    label: 'Source Camera',
+                    description: 'Select the physical source for the currently selected view',
+                    optionsSource: 'sourceCameras'
+                },
+                {
                     id: 'minimalExposure',
                     property: 'cameraMinimalExposure',
                     type: 'slider',

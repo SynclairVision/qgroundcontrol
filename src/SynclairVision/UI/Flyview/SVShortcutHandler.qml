@@ -206,6 +206,16 @@ Item {
         return registry
     }
 
+    function dispatchSourceCameraShortcut(key, modifiers) {
+        if (!(modifiers & Qt.ShiftModifier) || key < Qt.Key_0 || key > Qt.Key_9) return false
+        if (!root.shortcutInputEligible || !SVState.shortcutsEnabled) return true
+        const requestedCamera = key - Qt.Key_0
+        const availableCameras = root.flyView && root.flyView.digiview ? root.flyView.digiview.videoOutputNumCameras : 0
+        const cameraId = requestedCamera > 0 && requestedCamera <= availableCameras ? requestedCamera : 0
+        SVState.setSelectedViewSourceCamera(cameraId)
+        return true
+    }
+
     function textInputHasFocus() {
         const focusItem = root.Window.window ? root.Window.window.activeFocusItem : null
         return focusItem instanceof TextInput || focusItem instanceof TextEdit
@@ -338,11 +348,13 @@ Item {
     Connections {
         target: QGroundControl.application
 
-        function onUnacceptedKeyEvent(key, _modifiers, pressed, autoRepeat) {
+        function onUnacceptedKeyEvent(key, modifiers, pressed, autoRepeat) {
             if (pressed) {
                 if (!autoRepeat) {
                     root.trackVisualKeyPress(key)
-                    root.dispatch(key)
+                    if (!root.dispatchSourceCameraShortcut(key, modifiers)) {
+                        root.dispatch(key)
+                    }
                 }
             } else if (!autoRepeat) {
                 root.trackVisualKeyRelease(key)
