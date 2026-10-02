@@ -744,9 +744,29 @@ bool DigiviewManager::requestCaptureParameters()
     return _requestParameters(MAVLINK_MSG_ID_CAPTURE_PARAMETERS);
 }
 
-bool DigiviewManager::requestSensorParameters()
+bool DigiviewManager::requestSensorParameters(int cameraId)
 {
-    return _requestParameters(MAVLINK_MSG_ID_SENSOR_PARAMETERS, 0.0F, &_pendingSensorParametersRequest);
+    if ((cameraId <= 0) || (cameraId > _videoOutputNumCameras)) {
+        emit commandRejected(tr("The requested sensor camera is unavailable and was not sent."));
+        return false;
+    }
+
+    return _requestParameters(MAVLINK_MSG_ID_SENSOR_PARAMETERS, static_cast<float>(cameraId));
+}
+
+bool DigiviewManager::_requestAllSensorParameters()
+{
+    if (_videoOutputNumCameras <= 0) {
+        _pendingSensorParametersRequest = true;
+        return false;
+    }
+
+    bool allSent = true;
+    for (int cameraId = 1; cameraId <= _videoOutputNumCameras; ++cameraId) {
+        allSent = requestSensorParameters(cameraId) && allSent;
+    }
+    _pendingSensorParametersRequest = !allSent;
+    return allSent;
 }
 
 bool DigiviewManager::requestDetectionParameters()
@@ -997,11 +1017,16 @@ bool DigiviewManager::sendCamOffsetParameters(
     return _rejectUnsupportedSet(tr("CAM_OFFSET"));
 }
 
-void DigiviewManager::sendSensorParameters(
+bool DigiviewManager::sendSensorParameters(
     uint32_t min_exposure, uint32_t max_exposure,
     uint32_t min_gain, uint32_t max_gain,
-    float target_brightness)
+    float target_brightness, uint8_t camera_id)
 {
+    if (!_trafficEligible() || (camera_id == 0U) || (camera_id > _videoOutputNumCameras)) {
+        emit commandRejected(tr("The requested sensor camera is unavailable and was not sent."));
+        return false;
+    }
+
     mavlink_message_t msg;
     mavlink_sensor_parameters_t payload {};
 
@@ -1010,9 +1035,38 @@ void DigiviewManager::sendSensorParameters(
     payload.min_gain = min_gain;
     payload.max_gain = max_gain;
     payload.target_brightness = target_brightness;
+    payload.camera_id = camera_id;
 
     _encodeMessage(msg, payload, mavlink_msg_sensor_parameters_encode);
-    _sendMessage(msg);
+    return _sendMessage(msg);
+}
+
+bool DigiviewManager::setSensorTargetBrightness(int cameraId, float targetBrightness)
+{
+    if ((cameraId <= 0) || (cameraId > _videoOutputNumCameras)
+        || (static_cast<size_t>(cameraId) > _sensorStates.size())) {
+        emit commandRejected(tr("The requested sensor camera is unavailable and was not sent."));
+        return false;
+    }
+
+    const SensorParametersState& state = _sensorStates[static_cast<size_t>(cameraId - 1)];
+    if (!state.valid) {
+        emit commandRejected(tr("Sensor parameters for camera %1 are not available yet.").arg(cameraId));
+        (void) requestSensorParameters(cameraId);
+        return false;
+    }
+
+    const bool sent = sendSensorParameters(
+        state.minExposure,
+        state.maxExposure,
+        state.minGain,
+        state.maxGain,
+        targetBrightness,
+        static_cast<uint8_t>(cameraId));
+    if (sent) {
+        (void) requestSensorParameters(cameraId);
+    }
+    return sent;
 }
 
 bool DigiviewManager::sendCamDepthEstimationParameters(
@@ -1778,6 +1832,8 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         const bool videoOutputLayoutModeChangedValue = _videoOutputLayoutMode != layoutMode;
         const bool videoOutputNumUserViewsChangedValue = _videoOutputNumUserViews != numUserViews;
         const bool videoOutputNumCamerasChangedValue = _videoOutputNumCameras != numCameras;
+        const bool shouldRequestSensorParameters = (numCameras > 0)
+            && (videoOutputNumCamerasChangedValue || _pendingSensorParametersRequest);
         const bool videoOutputViewsChangedValue = _videoOutputViews != views;
         const bool videoOutputDetectionOverlayRectChangedValue =
             _videoOutputDetectionOverlayRect != detectionOverlayRect;
@@ -1829,6 +1885,9 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         }
         if (videoOutputNumCamerasChangedValue) {
             emit videoOutputNumCamerasChanged();
+        }
+        if (shouldRequestSensorParameters) {
+            (void) _requestAllSensorParameters();
         }
         if (videoOutputViewsChangedValue) {
             emit videoOutputViewsChanged();
@@ -2087,43 +2146,60 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
 
         mavlink_sensor_parameters_t payload;
         mavlink_msg_sensor_parameters_decode(&message, &payload);
+        if ((payload.camera_id == 0U) || (payload.camera_id > _videoOutputNumCameras)
+            || (static_cast<size_t>(payload.camera_id) > _sensorStates.size())) {
+            qCWarning(DigiviewManagerLog) << "Ignoring SENSOR_PARAMETERS with invalid camera id"
+                                          << payload.camera_id;
+            break;
+        }
 
-        const bool hasSensorParametersChangedValue = !_hasSensorParameters;
-        const bool sensorMinExposureChangedValue = _sensorMinExposure != payload.min_exposure;
-        const bool sensorMaxExposureChangedValue = _sensorMaxExposure != payload.max_exposure;
-        const bool sensorMinGainChangedValue = _sensorMinGain != payload.min_gain;
-        const bool sensorMaxGainChangedValue = _sensorMaxGain != payload.max_gain;
-        const bool sensorTargetBrightnessChangedValue =
-            !qFuzzyCompare(_sensorTargetBrightness, payload.target_brightness);
+        SensorParametersState& state = _sensorStates[static_cast<size_t>(payload.camera_id - 1)];
+        const bool stateChanged = !state.valid
+            || state.minExposure != payload.min_exposure
+            || state.maxExposure != payload.max_exposure
+            || state.minGain != payload.min_gain
+            || state.maxGain != payload.max_gain
+            || !qFuzzyCompare(state.targetBrightness, payload.target_brightness);
 
-        _hasSensorParameters = true;
-        _sensorMinExposure = payload.min_exposure;
-        _sensorMaxExposure = payload.max_exposure;
-        _sensorMinGain = payload.min_gain;
-        _sensorMaxGain = payload.max_gain;
-        _sensorTargetBrightness = payload.target_brightness;
+        state.valid = true;
+        state.minExposure = payload.min_exposure;
+        state.maxExposure = payload.max_exposure;
+        state.minGain = payload.min_gain;
+        state.maxGain = payload.max_gain;
+        state.targetBrightness = payload.target_brightness;
 
-        if (hasSensorParametersChangedValue) {
-            emit hasSensorParametersChanged();
+        if (stateChanged) {
+            emit sensorStatesChanged();
         }
-        if (sensorMinExposureChangedValue) {
-            emit sensorMinExposureChanged();
-        }
-        if (sensorMaxExposureChangedValue) {
-            emit sensorMaxExposureChanged();
-        }
-        if (sensorMinGainChangedValue) {
-            emit sensorMinGainChanged();
-        }
-        if (sensorMaxGainChangedValue) {
-            emit sensorMaxGainChanged();
-        }
-        if (sensorTargetBrightnessChangedValue) {
-            emit sensorTargetBrightnessChanged();
-        }
-        if (hasSensorParametersChangedValue || sensorMinExposureChangedValue || sensorMaxExposureChangedValue
-            || sensorMinGainChangedValue || sensorMaxGainChangedValue || sensorTargetBrightnessChangedValue) {
-            emit sensorParametersChanged();
+
+        // Keep the legacy scalar properties mirrored to the first physical camera so existing
+        // developer controls remain source-compatible while the main UI uses sensorStates.
+        if (payload.camera_id == 1U) {
+            const bool hasSensorParametersChangedValue = !_hasSensorParameters;
+            const bool sensorMinExposureChangedValue = _sensorMinExposure != payload.min_exposure;
+            const bool sensorMaxExposureChangedValue = _sensorMaxExposure != payload.max_exposure;
+            const bool sensorMinGainChangedValue = _sensorMinGain != payload.min_gain;
+            const bool sensorMaxGainChangedValue = _sensorMaxGain != payload.max_gain;
+            const bool sensorTargetBrightnessChangedValue =
+                !qFuzzyCompare(_sensorTargetBrightness, payload.target_brightness);
+
+            _hasSensorParameters = true;
+            _sensorMinExposure = payload.min_exposure;
+            _sensorMaxExposure = payload.max_exposure;
+            _sensorMinGain = payload.min_gain;
+            _sensorMaxGain = payload.max_gain;
+            _sensorTargetBrightness = payload.target_brightness;
+
+            if (hasSensorParametersChangedValue) emit hasSensorParametersChanged();
+            if (sensorMinExposureChangedValue) emit sensorMinExposureChanged();
+            if (sensorMaxExposureChangedValue) emit sensorMaxExposureChanged();
+            if (sensorMinGainChangedValue) emit sensorMinGainChanged();
+            if (sensorMaxGainChangedValue) emit sensorMaxGainChanged();
+            if (sensorTargetBrightnessChangedValue) emit sensorTargetBrightnessChanged();
+            if (hasSensorParametersChangedValue || sensorMinExposureChangedValue || sensorMaxExposureChangedValue
+                || sensorMinGainChangedValue || sensorMaxGainChangedValue || sensorTargetBrightnessChangedValue) {
+                emit sensorParametersChanged();
+            }
         }
 
         emit sensorParametersReceived(
@@ -2131,7 +2207,8 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
             payload.max_exposure,
             payload.min_gain,
             payload.max_gain,
-            payload.target_brightness);
+            payload.target_brightness,
+            payload.camera_id);
         break;
     }
     case MAVLINK_MSG_ID_CAM_DEPTH_ESTIMATION_PARAMETERS: {
@@ -2626,7 +2703,7 @@ void DigiviewManager::_establishRemoteSession(uint8_t systemId, uint8_t componen
         requestVideoOutputParameters();
     }
     if (_pendingSensorParametersRequest) {
-        requestSensorParameters();
+        _requestAllSensorParameters();
     }
     if (_pendingDetectionParametersRequest) {
         requestDetectionParameters();
@@ -2755,6 +2832,8 @@ void DigiviewManager::_resetRemoteSession()
     _sensorMinGain = 0;
     _sensorMaxGain = 0;
     _sensorTargetBrightness = 0.0f;
+    _sensorStates.fill(SensorParametersState{});
+    emit sensorStatesChanged();
 
     if (hasSensorParametersChangedValue) {
         emit hasSensorParametersChanged();
@@ -2853,6 +2932,26 @@ void DigiviewManager::_resetRemoteSessionForSenderIdentityChange()
     if (reconnect) {
         _establishRemoteSession(remoteSystemId, remoteComponentId);
     }
+}
+
+QVariantList DigiviewManager::sensorStates() const
+{
+    QVariantList list;
+    list.reserve(static_cast<qsizetype>(_videoOutputNumCameras));
+
+    for (int cameraId = 1; cameraId <= _videoOutputNumCameras; ++cameraId) {
+        const SensorParametersState& state = _sensorStates[static_cast<size_t>(cameraId - 1)];
+        QVariantMap map;
+        map.insert(QStringLiteral("cameraId"), cameraId);
+        map.insert(QStringLiteral("valid"), state.valid);
+        map.insert(QStringLiteral("minExposure"), state.minExposure);
+        map.insert(QStringLiteral("maxExposure"), state.maxExposure);
+        map.insert(QStringLiteral("minGain"), state.minGain);
+        map.insert(QStringLiteral("maxGain"), state.maxGain);
+        map.insert(QStringLiteral("targetBrightness"), state.targetBrightness);
+        list.append(map);
+    }
+    return list;
 }
 
 QVariantList DigiviewManager::cameraStates() const
