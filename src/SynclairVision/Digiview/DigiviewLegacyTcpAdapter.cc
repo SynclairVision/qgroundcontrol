@@ -90,6 +90,7 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
     }
 
     uint8_t parameterType = 0;
+    uint8_t cameraId = std::numeric_limits<uint8_t>::max();
     switch (requestedMessageId) {
     case MAVLINK_MSG_ID_SYSTEM_STATUS_PARAMETERS:
         parameterType = SYSTEM_STATUS;
@@ -113,6 +114,12 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
         parameterType = SINGLE_TARGET_TRACKING;
         break;
     case MAVLINK_MSG_ID_SENSOR_PARAMETERS:
+        if (!std::isfinite(command.param3) || (command.param3 <= 0.0F)
+            || (command.param3 > static_cast<float>(std::numeric_limits<uint8_t>::max()))) {
+            error = QStringLiteral("Invalid DigiView SENSOR camera id %1").arg(command.param3);
+            return false;
+        }
+        cameraId = static_cast<uint8_t>(command.param3);
         parameterType = SENSOR;
         break;
     case MAVLINK_MSG_ID_DETECTION_PARAMETERS:
@@ -149,7 +156,7 @@ bool intervalRequest(const mavlink_command_long_t& command, message& nativeMessa
         return false;
     }
 
-    pack_get_parameters(nativeMessage, parameterType);
+    pack_get_parameters(nativeMessage, parameterType, nullptr, cameraId);
     if (parameterType == TRACKED_DETECTION) {
         pack_tracked_detection_parameters(
             nativeMessage, 0, std::numeric_limits<uint8_t>::max(), 0, -2, 0.0F, 0.0F,
@@ -340,8 +347,13 @@ QByteArray DigiviewLegacyTcpAdapter::encode(const mavlink_message_t& mavlinkMess
     case MAVLINK_MSG_ID_SENSOR_PARAMETERS: {
         mavlink_sensor_parameters_t parameters {};
         mavlink_msg_sensor_parameters_decode(&mavlinkMessage, &parameters);
+        if (parameters.camera_id == 0U) {
+            error = QStringLiteral("Invalid DigiView TCP sensor camera id 0");
+            return {};
+        }
         pack_set_sensor_parameters(nativeMessage, parameters.min_exposure, parameters.max_exposure,
-                                   parameters.min_gain, parameters.max_gain, parameters.target_brightness);
+                                   parameters.min_gain, parameters.max_gain, parameters.target_brightness,
+                                   parameters.camera_id);
         break;
     }
     case MAVLINK_MSG_ID_SINGLE_TARGET_TRACKING_PARAMETERS: {
@@ -652,6 +664,7 @@ DigiviewLegacyTcpAdapter::DecodeResult DigiviewLegacyTcpAdapter::decode(
         parameters.min_gain = nativeParameters.min_gain;
         parameters.max_gain = nativeParameters.max_gain;
         parameters.target_brightness = nativeParameters.target_brightness;
+        parameters.camera_id = nativeParameters.camera_id;
         mavlink_msg_sensor_parameters_encode(kSyntheticSystemId, kSyntheticComponentId, &mavlinkMessage,
                                              &parameters);
         break;
