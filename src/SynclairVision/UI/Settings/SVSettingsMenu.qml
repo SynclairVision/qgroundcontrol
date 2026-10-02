@@ -462,7 +462,12 @@ Item {
         }
 
         if (settingData.id === 'sourceCamera') {
-            SVState.setSelectedViewSourceCamera(value)
+            if (SVState.setSelectedViewSourceCamera(value)) {
+                if (value > 0 && root.digiview) {
+                    root.digiview.requestSensorParameters(value)
+                }
+                root.syncSensorSettingsFromDigiview()
+            }
             return
         }
 
@@ -474,8 +479,24 @@ Item {
         commitSettingValue(settingData, value)
     }
 
+    function selectedSensorState() {
+        if (!root.digiview || !root.digiview.sensorStates) {
+            return null
+        }
+
+        const cameraId = SVState.activeViewSourceCamera
+        const index = cameraId - 1
+        if (cameraId <= 0 || index < 0 || index >= root.digiview.sensorStates.length) {
+            return null
+        }
+
+        const state = root.digiview.sensorStates[index]
+        return state && state.valid ? state : null
+    }
+
     function sendSensorSettings() {
-        if (!root.digiview || !root.digiview.sessionActive || !root.digiview.hasSensorParameters) {
+        const state = selectedSensorState()
+        if (!state || !root.digiview || !root.digiview.sessionActive) {
             return
         }
 
@@ -484,7 +505,8 @@ Item {
             displayedSettingValue('cameraMaximalExposure', 'sensor'),
             displayedSettingValue('cameraMinimalGain', 'sensor'),
             displayedSettingValue('cameraMaximalGain', 'sensor'),
-            displayedSettingValue('videoTargetBrightness', 'sensor'))
+            state.targetBrightness,
+            state.cameraId)
     }
 
     function sendDetectionSettings() {
@@ -533,17 +555,17 @@ Item {
     }
 
     function syncSensorSettingsFromDigiview() {
-        if (!root.digiview || !root.digiview.sessionActive || !root.digiview.hasSensorParameters) {
+        const state = selectedSensorState()
+        if (!state || !root.digiview || !root.digiview.sessionActive) {
             root.sensorParameterValues = ({})
             return
         }
 
         root.sensorParameterValues = {
-            videoTargetBrightness: root.digiview.sensorTargetBrightness,
-            cameraMinimalExposure: root.digiview.sensorMinExposure,
-            cameraMaximalExposure: root.digiview.sensorMaxExposure,
-            cameraMinimalGain: root.digiview.sensorMinGain,
-            cameraMaximalGain: root.digiview.sensorMaxGain
+            cameraMinimalExposure: state.minExposure,
+            cameraMaximalExposure: state.maxExposure,
+            cameraMinimalGain: state.minGain,
+            cameraMaximalGain: state.maxGain
         }
     }
 
@@ -624,6 +646,10 @@ Item {
             root.syncSensorSettingsFromDigiview()
         }
 
+        function onSensorStatesChanged() {
+            root.syncSensorSettingsFromDigiview()
+        }
+
         function onDetectionParametersChanged() {
             root.syncDetectionSettingsFromDigiview()
         }
@@ -691,6 +717,10 @@ Item {
         if (settingData && settingData.id === 'sourceCamera') {
             return !!root.digiview && root.digiview.sessionActive && root.digiview.videoOutputNumCameras > 0
                 && SVState.cameraSelected >= 0 && SVState.cameraSelected < root.digiview.videoOutputNumUserViews
+        }
+
+        if (settingData && settingData.digiviewParameterGroup === 'sensor') {
+            return selectedSensorState() !== null
         }
 
         if (settingData && settingData.enabled === false) {
