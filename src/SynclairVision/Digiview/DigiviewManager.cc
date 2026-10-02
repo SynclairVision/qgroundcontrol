@@ -744,6 +744,16 @@ bool DigiviewManager::requestCaptureParameters()
     return _requestParameters(MAVLINK_MSG_ID_CAPTURE_PARAMETERS);
 }
 
+bool DigiviewManager::requestViewCropCameraParameters(int viewId)
+{
+    if ((viewId < 0) || (viewId >= _videoOutputNumUserViews)) {
+        emit commandRejected(tr("The requested video view is unavailable and was not sent."));
+        return false;
+    }
+
+    return _requestParameters(MAVLINK_MSG_ID_VIEW_CROP_CAMERA_PARAMETERS, static_cast<float>(viewId));
+}
+
 bool DigiviewManager::requestSensorParameters(int cameraId)
 {
     if ((cameraId <= 0) || (cameraId > _videoOutputNumCameras)) {
@@ -834,14 +844,18 @@ bool DigiviewManager::setViewSourceCamera(int viewId, int cameraId)
         return false;
     }
 
-    mavlink_cam_targeting_parameters_t payload {};
+    mavlink_message_t msg;
+    mavlink_view_crop_camera_parameters_t payload {};
     copyStringToCharBuf(_streamName, payload.stream_name, 16);
-    payload.cam_id = static_cast<uint8_t>(viewId);
-    payload.targeting_mode = std::numeric_limits<uint8_t>::max();
-    payload.stabilization_flags = 0x08U;
-    payload.crop_camera = static_cast<uint8_t>(cameraId);
-    payload.crop_camera_magic = kCropCameraMagic;
-    return _sendCamTargetingParameters(payload);
+    payload.view_id = static_cast<uint8_t>(viewId);
+    payload.camera_id = static_cast<int8_t>(cameraId);
+    _encodeMessage(msg, payload, mavlink_msg_view_crop_camera_parameters_encode);
+
+    const bool sent = _sendMessage(msg);
+    if (sent) {
+        (void) requestViewCropCameraParameters(viewId);
+    }
+    return sent;
 }
 
 bool DigiviewManager::sendCaptureParameters(
@@ -1889,6 +1903,9 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
         if (shouldRequestSensorParameters) {
             (void) _requestAllSensorParameters();
         }
+        for (int viewId = 0; viewId < numUserViews; ++viewId) {
+            (void) requestViewCropCameraParameters(viewId);
+        }
         if (videoOutputViewsChangedValue) {
             emit videoOutputViewsChanged();
         }
@@ -2109,6 +2126,32 @@ void DigiviewManager::_handleMessage(const mavlink_message_t& message)
                 || state.hasTargetState != previousState.hasTargetState) {
                 emit cameraStatesChanged();
             }
+        }
+        break;
+    }
+    case MAVLINK_MSG_ID_VIEW_CROP_CAMERA_PARAMETERS: {
+        if (!_remoteIdentityValid || (message.sysid != _remoteSystemId) || (message.compid != _remoteComponentId)) {
+            qCDebug(DigiviewManagerLog) << "Ignoring VIEW_CROP_CAMERA_PARAMETERS from an unexpected MAVLink identity";
+            break;
+        }
+
+        mavlink_view_crop_camera_parameters_t payload {};
+        mavlink_msg_view_crop_camera_parameters_decode(&message, &payload);
+        const QString streamName = stringFromCharBuf(payload.stream_name, 16);
+        if (streamName != _streamName || payload.view_id >= _videoOutputNumUserViews
+            || payload.view_id >= _viewSourceCameras.size()
+            || payload.camera_id < 0 || payload.camera_id > _videoOutputNumCameras) {
+            qCWarning(DigiviewManagerLog) << "Ignoring invalid VIEW_CROP_CAMERA_PARAMETERS"
+                                          << "stream" << streamName
+                                          << "view" << payload.view_id
+                                          << "camera" << payload.camera_id;
+            break;
+        }
+
+        const size_t viewIndex = static_cast<size_t>(payload.view_id);
+        if (_viewSourceCameras[viewIndex] != payload.camera_id) {
+            _viewSourceCameras[viewIndex] = payload.camera_id;
+            emit viewSourceCamerasChanged();
         }
         break;
     }
@@ -2776,6 +2819,9 @@ void DigiviewManager::_resetRemoteSession()
     _videoOutputDetectionOverlayRect.clear();
     _videoOutputSingleDetectionSize = 0;
     _videoOutputParameters = {};
+    const bool viewSourceCamerasChangedValue =
+        std::any_of(_viewSourceCameras.cbegin(), _viewSourceCameras.cend(), [](int cameraId) { return cameraId != 0; });
+    _viewSourceCameras.fill(0);
 
     if (hasVideoOutputParametersChangedValue) {
         emit hasVideoOutputParametersChanged();
@@ -2806,6 +2852,9 @@ void DigiviewManager::_resetRemoteSession()
     }
     if (videoOutputViewsChangedValue) {
         emit videoOutputViewsChanged();
+    }
+    if (viewSourceCamerasChangedValue) {
+        emit viewSourceCamerasChanged();
     }
     if (videoOutputDetectionOverlayRectChangedValue) {
         emit videoOutputDetectionOverlayRectChanged();
@@ -2927,6 +2976,16 @@ void DigiviewManager::_resetRemoteSessionForSenderIdentityChange()
     if (reconnect) {
         _establishRemoteSession(remoteSystemId, remoteComponentId);
     }
+}
+
+QVariantList DigiviewManager::viewSourceCameras() const
+{
+    QVariantList list;
+    list.reserve(static_cast<qsizetype>(_videoOutputNumUserViews));
+    for (int viewId = 0; viewId < _videoOutputNumUserViews; ++viewId) {
+        list.append(_viewSourceCameras[static_cast<size_t>(viewId)]);
+    }
+    return list;
 }
 
 QVariantList DigiviewManager::sensorStates() const
