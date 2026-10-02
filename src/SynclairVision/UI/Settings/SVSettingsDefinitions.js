@@ -20,6 +20,17 @@ function getGeneralSections(isRecording) {
                         { label: '1600x960', value: { width: 1600, height: 960 } },
                     ]
                 },
+                {
+                    id: 'target_brightness',
+                    property: 'videoTargetBrightness',
+                    type: 'slider',
+                    label: 'Target Brightness',
+                    description: 'Target brightness for the physical camera used by the selected view',
+                    digiviewParameterGroup: 'sensor',
+                    min: -3,
+                    max: 3,
+                    step: 0.1
+                },
             ]
         },
         {
