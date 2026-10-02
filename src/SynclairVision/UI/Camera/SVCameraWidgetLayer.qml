@@ -314,6 +314,7 @@ Item {
 
     Popup {
         id: brightnessPopup
+        parent: root
         x: brightnessButton.x
         y: brightnessButton.y + brightnessButton.height + SVUnits.margin / 2
         width: Math.max(ScreenTools.defaultFontPixelWidth * 24, 210)
@@ -322,9 +323,10 @@ Item {
 
         property int selectedCameraId: 0
         property real draftBrightness: 0
+        readonly property var selectedState: root.sensorState(selectedCameraId)
 
         function syncFromBackend() {
-            const state = root.sensorState(selectedCameraId)
+            const state = selectedState
             if (state && !brightnessSlider.pressed) {
                 draftBrightness = state.targetBrightness
             }
@@ -390,6 +392,7 @@ Item {
                     to: 3
                     stepSize: 0.1
                     value: brightnessPopup.draftBrightness
+                    enabled: brightnessPopup.selectedState !== null
 
                     onMoved: brightnessPopup.draftBrightness = value
                     onPressedChanged: {
