@@ -507,15 +507,7 @@ QtObject {
     function setSelectedViewSourceCamera(cameraId) {
         if (!digiview || !digiview.sessionActive || cameraSelected < 0 || cameraSelected >= digiview.videoOutputNumUserViews) return false
         const sourceCamera = cameraId > 0 && cameraId <= digiview.videoOutputNumCameras ? cameraId : 0
-        if (!digiview.setViewSourceCamera(cameraSelected, sourceCamera)) return false
-        const nextSources = viewSourceCameras.slice()
-        nextSources[cameraSelected] = sourceCamera
-        viewSourceCameras = nextSources
-        return true
-    }
-
-    function resetViewSourceCameras() {
-        viewSourceCameras = [0, 0, 0, 0]
+        return digiview.setViewSourceCamera(cameraSelected, sourceCamera)
     }
 
     function setCamera(cameraId) {
@@ -669,7 +661,8 @@ QtObject {
     property bool shortcutZoomOutHeld: false
     property bool shortcutSmallMovementHeld: false
     property int  cameraSelected: -1
-    property var viewSourceCameras: [0, 0, 0, 0]
+    readonly property var viewSourceCameras: digiview && digiview.viewSourceCameras
+        ? digiview.viewSourceCameras : []
     readonly property int activeViewSourceCamera: cameraSelected >= 0 && cameraSelected < viewSourceCameras.length
         ? viewSourceCameras[cameraSelected] : 0
     property bool record: false
@@ -750,10 +743,6 @@ QtObject {
 
         function onCameraStatesChanged() {
             root.synchronizeCameraTrackingStates()
-        }
-
-        function onSessionActiveChanged() {
-            if (!digiview.sessionActive) root.resetViewSourceCameras()
         }
 
         function onVideoOutputLayoutModeChanged() {
