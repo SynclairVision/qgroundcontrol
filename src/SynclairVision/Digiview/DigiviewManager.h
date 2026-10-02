@@ -32,6 +32,15 @@ struct CameraTrackingState {
     bool hasTargetState = false;
 };
 
+struct SensorParametersState {
+    bool valid = false;
+    uint32_t minExposure = 0;
+    uint32_t maxExposure = 0;
+    uint32_t minGain = 0;
+    uint32_t maxGain = 0;
+    float targetBrightness = 0.0f;
+};
+
 class DigiviewManager : public QObject
 {
     Q_OBJECT
@@ -70,6 +79,7 @@ class DigiviewManager : public QObject
     Q_PROPERTY(quint32 sensorMinGain READ sensorMinGain NOTIFY sensorMinGainChanged)
     Q_PROPERTY(quint32 sensorMaxGain READ sensorMaxGain NOTIFY sensorMaxGainChanged)
     Q_PROPERTY(float sensorTargetBrightness READ sensorTargetBrightness NOTIFY sensorTargetBrightnessChanged)
+    Q_PROPERTY(QVariantList sensorStates READ sensorStates NOTIFY sensorStatesChanged)
     Q_PROPERTY(bool hasDetectionParameters READ hasDetectionParameters NOTIFY hasDetectionParametersChanged)
     Q_PROPERTY(int detectionMode READ detectionMode NOTIFY detectionModeChanged)
     Q_PROPERTY(int detectionSortingMode READ detectionSortingMode NOTIFY detectionSortingModeChanged)
@@ -103,6 +113,7 @@ public:
     static constexpr size_t kMaxCameras = 6;
 
     QVariantList cameraStates() const;
+    QVariantList sensorStates() const;
 
     explicit DigiviewManager(QObject* parent = nullptr);
     ~DigiviewManager() override;
@@ -185,7 +196,7 @@ public:
     Q_INVOKABLE bool requestModelParameters();
     Q_INVOKABLE bool requestVideoOutputParameters();
     Q_INVOKABLE bool requestCaptureParameters();
-    Q_INVOKABLE bool requestSensorParameters();
+    Q_INVOKABLE bool requestSensorParameters(int cameraId);
     Q_INVOKABLE bool requestDetectionParameters();
     Q_INVOKABLE bool requestTrackedDetectionParameters();
     Q_INVOKABLE bool requestCalibrationParameters(int cameraId);
@@ -219,10 +230,11 @@ public:
         QString stream_name, uint8_t cam_id,
         float x, float y,
         float yaw_global, float pitch_global, float yaw_rel, float pitch_rel);
-    Q_INVOKABLE void sendSensorParameters(
+    Q_INVOKABLE bool sendSensorParameters(
         uint32_t min_exposure, uint32_t max_exposure,
         uint32_t min_gain, uint32_t max_gain,
-        float target_brightness);
+        float target_brightness, uint8_t camera_id);
+    Q_INVOKABLE bool setSensorTargetBrightness(int cameraId, float targetBrightness);
     Q_INVOKABLE bool sendCamDepthEstimationParameters(
         QString stream_name, uint8_t cam_id, uint8_t depth_estimation_mode, float depth);
     Q_INVOKABLE bool sendSingleTargetTrackingParameters(
@@ -293,6 +305,7 @@ signals:
     void sensorMaxGainChanged();
     void sensorTargetBrightnessChanged();
     void sensorParametersChanged();
+    void sensorStatesChanged();
     void hasDetectionParametersChanged();
     void detectionModeChanged();
     void detectionSortingModeChanged();
@@ -348,7 +361,7 @@ signals:
     void sensorParametersReceived(
         uint32_t min_exposure, uint32_t max_exposure,
         uint32_t min_gain, uint32_t max_gain,
-        float target_brightness);
+        float target_brightness, uint8_t camera_id);
     void camDepthEstimationParametersReceived(
         const QString& stream_name, uint8_t cam_id, uint8_t depth_estimation_mode, float depth);
     void singleTargetTrackingParametersReceived(
@@ -397,6 +410,7 @@ private:
     void _handleMessage(const mavlink_message_t& message);
     bool _sendMessage(const mavlink_message_t& message);
     bool _requestParameters(uint32_t messageId, float parameter3 = 0.0F, bool* pendingRequest = nullptr);
+    bool _requestAllSensorParameters();
     bool _sendVideoOutputUpdate(std::optional<uint8_t> layoutMode, std::optional<uint8_t> detectionOverlayMode);
     bool _sendVideoOutputParameters(const mavlink_video_output_parameters_t& payload);
     bool _rejectUnsupportedSet(const QString& parameterName);
@@ -534,6 +548,7 @@ private:
     quint32 _sensorMinGain = 0;
     quint32 _sensorMaxGain = 0;
     float _sensorTargetBrightness = 0.0f;
+    std::array<SensorParametersState, kMaxCameras> _sensorStates{};
 
     bool _hasDetectionParameters = false;
     uint8_t _detectionMode = 0;
