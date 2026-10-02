@@ -6,6 +6,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QCoreApplication>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
