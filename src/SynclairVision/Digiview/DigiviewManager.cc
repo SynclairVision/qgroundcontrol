@@ -2689,11 +2689,6 @@ void DigiviewManager::_establishRemoteSession(uint8_t systemId, uint8_t componen
 
     _sendMessage(msg);
 
-    command.param1 = static_cast<float>(MAVLINK_MSG_ID_SENSOR_PARAMETERS);
-    _encodeMessage(msg, command, mavlink_msg_command_long_encode);
-    qCDebug(DigiviewManagerLog) << "Subscribing to SENSOR_PARAMETERS at" << command.param2 << "us";
-    _sendMessage(msg);
-
     command.param1 = static_cast<float>(MAVLINK_MSG_ID_DETECTION_PARAMETERS);
     _encodeMessage(msg, command, mavlink_msg_command_long_encode);
     qCDebug(DigiviewManagerLog) << "Subscribing to DETECTION_PARAMETERS at" << command.param2 << "us";
