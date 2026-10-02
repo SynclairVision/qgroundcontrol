@@ -104,7 +104,7 @@ Item {
             return null
         }
 
-        if (parameterGroup === 'sensor' && root.digiview.hasSensorParameters) {
+        if (parameterGroup === 'sensor' && selectedSensorState()) {
             return root.sensorParameterValues
         }
 
