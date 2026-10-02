@@ -31,7 +31,6 @@ constexpr int kRestartReconnectInitialDelayMs = 250;
 constexpr int kRestartReconnectMaximumDelayMs = 2000;
 constexpr uint8_t kDigiviewSystemId = 252;
 constexpr uint8_t kDigiviewComponentId = 66;
-constexpr uint32_t kCropCameraMagic = 0x43524F50U;
 
 void copyStringToCharBuf(const QString& src, char* dest, int size)
 {
