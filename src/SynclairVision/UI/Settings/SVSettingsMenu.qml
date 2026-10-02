@@ -223,6 +223,21 @@ Item {
     }
 
     function settingDescription(settingData) {
+        if (settingData.id === 'target_brightness') {
+            if (!root.digiview || !root.digiview.sessionActive) {
+                return qsTr('Unavailable until DigiView is connected.')
+            }
+            if (SVState.cameraSelected < 0) {
+                return qsTr('Select a video view to adjust its camera brightness.')
+            }
+            if (SVState.activeViewSourceCamera <= 0) {
+                return qsTr('The selected view uses automatic camera selection. Choose a physical source camera first.')
+            }
+            if (!selectedSensorState()) {
+                return qsTr('Waiting for sensor settings from the selected camera.')
+            }
+        }
+
         if (settingData.id === 'aiEnabled' || settingData.id === 'aiScanModel'
                 || settingData.id === 'aiDetectionOverlay' || settingData.id === 'restart_digiview') {
             if (!root.digiview || !root.digiview.sessionActive) return qsTr('Unavailable until DigiView is connected.')
@@ -462,12 +477,7 @@ Item {
         }
 
         if (settingData.id === 'sourceCamera') {
-            if (SVState.setSelectedViewSourceCamera(value)) {
-                if (value > 0 && root.digiview) {
-                    root.digiview.requestSensorParameters(value)
-                }
-                root.syncSensorSettingsFromDigiview()
-            }
+            SVState.setSelectedViewSourceCamera(value)
             return
         }
 
@@ -547,7 +557,12 @@ Item {
         updateRemoteSettingValue(settingData, value)
         setSettingValue(settingData, value)
 
-        if (settingData.digiviewParameterGroup === 'sensor') {
+        if (settingData.property === 'videoTargetBrightness') {
+            const state = selectedSensorState()
+            if (state && root.digiview) {
+                root.digiview.setSensorTargetBrightness(state.cameraId, value)
+            }
+        } else if (settingData.digiviewParameterGroup === 'sensor') {
             sendSensorSettings()
         } else if (settingData.digiviewParameterGroup === 'detection') {
             sendDetectionSettings()
@@ -562,6 +577,7 @@ Item {
         }
 
         root.sensorParameterValues = {
+            videoTargetBrightness: state.targetBrightness,
             cameraMinimalExposure: state.minExposure,
             cameraMaximalExposure: state.maxExposure,
             cameraMinimalGain: state.minGain,
@@ -610,6 +626,21 @@ Item {
         syncSensorSettingsFromDigiview()
         syncDetectionSettingsFromDigiview()
         rebaseAiDraftFromAuthoritative()
+    }
+
+    Connections {
+        target: SVState
+
+        function onCameraSelectedChanged() {
+            root.syncSensorSettingsFromDigiview()
+        }
+
+        function onActiveViewSourceCameraChanged() {
+            root.syncSensorSettingsFromDigiview()
+            if (SVState.activeViewSourceCamera > 0 && root.digiview) {
+                root.digiview.requestSensorParameters(SVState.activeViewSourceCamera)
+            }
+        }
     }
 
     Connections {
