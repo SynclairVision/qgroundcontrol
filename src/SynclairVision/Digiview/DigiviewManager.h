@@ -69,7 +69,6 @@ class DigiviewManager : public QObject
     Q_PROPERTY(int videoOutputNumUserViews READ videoOutputNumUserViews NOTIFY videoOutputNumUserViewsChanged)
     Q_PROPERTY(int videoOutputNumCameras READ videoOutputNumCameras NOTIFY videoOutputNumCamerasChanged)
     Q_PROPERTY(QVariantList videoOutputViews READ videoOutputViews NOTIFY videoOutputViewsChanged)
-    Q_PROPERTY(QVariantList viewSourceCameras READ viewSourceCameras NOTIFY viewSourceCamerasChanged)
     Q_PROPERTY(QVariantMap videoOutputDetectionOverlayRect READ videoOutputDetectionOverlayRect NOTIFY
                videoOutputDetectionOverlayRectChanged)
     Q_PROPERTY(int videoOutputSingleDetectionSize READ videoOutputSingleDetectionSize NOTIFY
@@ -112,11 +111,9 @@ public:
     static constexpr uint8_t kDefaultSenderComponentId = MAV_COMP_ID_MISSIONPLANNER;
 
     static constexpr size_t kMaxCameras = 6;
-    static constexpr size_t kMaxUserViews = 4;
 
     QVariantList cameraStates() const;
     QVariantList sensorStates() const;
-    QVariantList viewSourceCameras() const;
 
     explicit DigiviewManager(QObject* parent = nullptr);
     ~DigiviewManager() override;
@@ -200,7 +197,6 @@ public:
     Q_INVOKABLE bool requestVideoOutputParameters();
     Q_INVOKABLE bool requestCaptureParameters();
     Q_INVOKABLE bool requestSensorParameters(int cameraId);
-    Q_INVOKABLE bool requestViewCropCameraParameters(int viewId);
     Q_INVOKABLE bool requestDetectionParameters();
     Q_INVOKABLE bool requestTrackedDetectionParameters();
     Q_INVOKABLE bool requestCalibrationParameters(int cameraId);
@@ -300,7 +296,6 @@ signals:
     void videoOutputNumUserViewsChanged();
     void videoOutputNumCamerasChanged();
     void videoOutputViewsChanged();
-    void viewSourceCamerasChanged();
     void videoOutputDetectionOverlayRectChanged();
     void videoOutputSingleDetectionSizeChanged();
     void hasSensorParametersChanged();
@@ -539,7 +534,6 @@ private:
     QVariantMap _videoOutputDetectionOverlayRect;
     int _videoOutputSingleDetectionSize = 0;
     mavlink_video_output_parameters_t _videoOutputParameters {};
-    std::array<int, kMaxUserViews> _viewSourceCameras{};
 
     bool _hasAIParameters = false;
     bool _aiEnabled = false;
