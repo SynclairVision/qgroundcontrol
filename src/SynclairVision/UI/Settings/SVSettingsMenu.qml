@@ -18,6 +18,7 @@ Item {
     readonly property bool networkConnectionActive: SVState.digiviewSessionRequested
     property var sensorParameterValues: ({})
     property var detectionParameterValues: ({})
+    property int brightnessCameraId: 1
     readonly property bool aiAuthoritativeReady: !!root.digiview && root.digiview.sessionActive
         && root.digiview.hasAIParameters && root.digiview.aiModelDiscoveryReady
         && root.digiview.availableScanModels.length > 0
@@ -128,6 +129,11 @@ Item {
             return SVSettings.aiDetectionOverlayPosition
         }
 
+        if (propertyName === 'videoTargetBrightness') {
+            const state = brightnessSensorState()
+            return state ? state.targetBrightness : SVSettings.videoTargetBrightness
+        }
+
         const parameterValues = remoteParameterValues(parameterGroup)
 
         if (parameterValues && parameterValues[propertyName] !== undefined) {
@@ -200,6 +206,15 @@ Item {
             return options
         }
 
+        if (settingData.optionsSource === 'brightnessCameras') {
+            const options = []
+            const count = root.digiview ? root.digiview.videoOutputNumCameras : 0
+            for (let cameraId = 1; cameraId <= count; ++cameraId) {
+                options.push({ label: 'Camera ' + cameraId, value: cameraId })
+            }
+            return options
+        }
+
         return settingData.options ? settingData.options : []
     }
 
@@ -227,14 +242,8 @@ Item {
             if (!root.digiview || !root.digiview.sessionActive) {
                 return qsTr('Unavailable until DigiView is connected.')
             }
-            if (SVState.cameraSelected < 0) {
-                return qsTr('Select a video view to adjust its camera brightness.')
-            }
-            if (SVState.activeViewSourceCamera <= 0) {
-                return qsTr('The selected view uses automatic camera selection. Choose a physical source camera first.')
-            }
-            if (!selectedSensorState()) {
-                return qsTr('Waiting for sensor settings from the selected camera.')
+            if (!brightnessSensorState()) {
+                return qsTr('Waiting for sensor settings from Camera %1.').arg(root.brightnessCameraId)
             }
         }
 
@@ -448,6 +457,13 @@ Item {
             return 0
         }
 
+        if (settingData.id === 'brightnessCamera') {
+            for (let index = 0; index < options.length; ++index) {
+                if (options[index].value === root.brightnessCameraId) return index
+            }
+            return 0
+        }
+
         if (useSettingsBridge(settingData)) {
             const currentValue = displayedSettingValue(settingData.property, settingData.digiviewParameterGroup)
 
@@ -481,6 +497,15 @@ Item {
             return
         }
 
+        if (settingData.id === 'brightnessCamera') {
+            root.brightnessCameraId = value
+            root.syncBrightnessFromDigiview()
+            if (root.digiview && value > 0) {
+                root.digiview.requestSensorParameters(value)
+            }
+            return
+        }
+
         if (settingData.property === 'aiDetectionOverlayPosition') {
             SVState.setAiDetectionOverlayPosition(value)
             return
@@ -489,12 +514,11 @@ Item {
         commitSettingValue(settingData, value)
     }
 
-    function selectedSensorState() {
+    function sensorState(cameraId) {
         if (!root.digiview || !root.digiview.sensorStates) {
             return null
         }
 
-        const cameraId = SVState.activeViewSourceCamera
         const index = cameraId - 1
         if (cameraId <= 0 || index < 0 || index >= root.digiview.sensorStates.length) {
             return null
@@ -502,6 +526,14 @@ Item {
 
         const state = root.digiview.sensorStates[index]
         return state && state.valid ? state : null
+    }
+
+    function selectedSensorState() {
+        return sensorState(SVState.activeViewSourceCamera)
+    }
+
+    function brightnessSensorState() {
+        return sensorState(root.brightnessCameraId)
     }
 
     function sendSensorSettings() {
@@ -558,7 +590,7 @@ Item {
         setSettingValue(settingData, value)
 
         if (settingData.property === 'videoTargetBrightness') {
-            const state = selectedSensorState()
+            const state = brightnessSensorState()
             if (state && root.digiview) {
                 root.digiview.setSensorTargetBrightness(state.cameraId, value)
             }
@@ -566,6 +598,13 @@ Item {
             sendSensorSettings()
         } else if (settingData.digiviewParameterGroup === 'detection') {
             sendDetectionSettings()
+        }
+    }
+
+    function syncBrightnessFromDigiview() {
+        const state = brightnessSensorState()
+        if (state) {
+            SVSettings.videoTargetBrightness = state.targetBrightness
         }
     }
 
@@ -577,7 +616,6 @@ Item {
         }
 
         root.sensorParameterValues = {
-            videoTargetBrightness: state.targetBrightness,
             cameraMinimalExposure: state.minExposure,
             cameraMaximalExposure: state.maxExposure,
             cameraMinimalGain: state.minGain,
@@ -623,6 +661,7 @@ Item {
     }
 
     Component.onCompleted: {
+        syncBrightnessFromDigiview()
         syncSensorSettingsFromDigiview()
         syncDetectionSettingsFromDigiview()
         rebaseAiDraftFromAuthoritative()
@@ -678,6 +717,7 @@ Item {
         }
 
         function onSensorStatesChanged() {
+            root.syncBrightnessFromDigiview()
             root.syncSensorSettingsFromDigiview()
         }
 
@@ -748,6 +788,14 @@ Item {
         if (settingData && settingData.id === 'sourceCamera') {
             return !!root.digiview && root.digiview.sessionActive && root.digiview.videoOutputNumCameras > 0
                 && SVState.cameraSelected >= 0 && SVState.cameraSelected < root.digiview.videoOutputNumUserViews
+        }
+
+        if (settingData && settingData.id === 'brightnessCamera') {
+            return !!root.digiview && root.digiview.sessionActive && root.digiview.videoOutputNumCameras > 0
+        }
+
+        if (settingData && settingData.id === 'target_brightness') {
+            return brightnessSensorState() !== null
         }
 
         if (settingData && settingData.digiviewParameterGroup === 'sensor') {
