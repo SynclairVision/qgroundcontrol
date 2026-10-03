@@ -21,11 +21,18 @@ function getGeneralSections(isRecording) {
                     ]
                 },
                 {
+                    id: 'brightnessCamera',
+                    type: 'dropdown',
+                    label: 'Brightness Camera',
+                    description: 'Select the physical camera to adjust',
+                    optionsSource: 'brightnessCameras'
+                },
+                {
                     id: 'target_brightness',
                     property: 'videoTargetBrightness',
                     type: 'slider',
                     label: 'Target Brightness',
-                    description: 'Target brightness for the physical camera used by the selected view',
+                    description: 'Target brightness for the selected physical camera',
                     digiviewParameterGroup: 'sensor',
                     min: -3,
                     max: 3,
