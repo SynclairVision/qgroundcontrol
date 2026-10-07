@@ -16,28 +16,13 @@ FirstRunPrompt {
     readonly property string userGuideUrl: "https://github.com/SynclairVision/qgroundcontrol/blob/master/user_guide.md"
     readonly property string releaseNotesUrl: "https://github.com/SynclairVision/qgroundcontrol/releases"
 
-    property int selectedDropdown: -1
-    readonly property var getStartedItems: [
-        {
-            title: qsTr("Connect to DigiView"),
-            icon: "/qmlimages/network_connected.svg",
-            details: qsTr("Open Settings > Network, select the DigiView profile for your payload, and choose Connect. Wait for control and video to become active before operating the camera.")
-        },
-        {
-            title: qsTr("Select a camera"),
-            icon: "/qmlimages/layout_single.svg",
-            details: qsTr("Select a camera view before using movement, zoom, per-view overlays, or tracking. Use the layout menu to arrange the available camera feeds.")
-        },
-        {
-            title: qsTr("Control the payload"),
-            icon: "/qmlimages/settings_controls.svg",
-            details: qsTr("Use the on-screen control panel or keyboard shortcuts to move and zoom the selected camera. Controls can be locked to prevent accidental input.")
-        },
-        {
-            title: qsTr("Use AI and tracking"),
-            icon: "/qmlimages/tracking_main.svg",
-            details: qsTr("Enable the AI overlay when supported, then use Pixel, GNSS, or Manual tracking from the tracking menu. Validate tracking behavior for your DigiView and aircraft configuration before operational use.")
-        }
+    readonly property var getStartedSteps: [
+        qsTr("Start SynclairQGC and open Fly view."),
+        qsTr("Make sure the SynclairVision overlay is visible. The default shortcut is O."),
+        qsTr("Open Settings > Network."),
+        qsTr("Select or create a DigiView network profile and choose Connect."),
+        qsTr("Wait for video and control communication to become active."),
+        qsTr("Select a camera view before using movement, zoom, per-view overlays, or tracking.")
     ]
 
     onClosed: {
@@ -185,106 +170,42 @@ FirstRunPrompt {
                         color: qgcPalette.buttonHighlight
                     }
 
-                    RowLayout {
-                        id: getStartedRow
-
+                    Column {
                         width: parent.width
-                        spacing: SVUnits.bigMargin
-
-                        readonly property real collapsedCardWidth: SVUnits.objectWidth
-                        readonly property real defaultCardWidth: (width - (3 * spacing)) / 4
-                        readonly property real expandedCardWidth: width - (3 * collapsedCardWidth) - (3 * spacing)
+                        spacing: SVUnits.margin
 
                         Repeater {
-                            model: root.getStartedItems.length
+                            model: root.getStartedSteps.length
 
-                            Item {
-                                id: cardItem
-
+                            Row {
                                 required property int index
-                                readonly property bool isSelected: root.selectedDropdown === index
-                                readonly property bool hasSelection: root.selectedDropdown !== -1
-                                readonly property bool isCollapsed: hasSelection && !isSelected
-                                readonly property var itemData: root.getStartedItems[index]
 
-                                Layout.fillWidth: false
-                                Layout.preferredWidth: {
-                                    if (!hasSelection) {
-                                        return getStartedRow.defaultCardWidth
-                                    }
-                                    return isSelected ? getStartedRow.expandedCardWidth : getStartedRow.collapsedCardWidth
+                                width: parent.width
+                                spacing: SVUnits.bigMargin
+
+                                QGCLabel {
+                                    width: SVUnits.objectWidth * 0.35
+                                    text: (index + 1) + "."
+                                    font.pointSize: SVUnits.svText
+                                    font.bold: true
+                                    color: qgcPalette.buttonHighlight
+                                    horizontalAlignment: Text.AlignRight
                                 }
 
-                                implicitHeight: SVUnits.objectHeight * 0.5
-
-                                Behavior on Layout.preferredWidth {
-                                    NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
-                                }
-
-                                SVBackground {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    normalColor: qgcPalette.windowShade
-                                    hovered: cardMouse.containsMouse
-                                    checkable: true
-                                    checked: cardItem.isSelected
-                                    pressed: cardMouse.pressed
-                                    hoverPosition: Qt.point(cardMouse.mouseX, cardMouse.mouseY)
-                                    radius: SVUnits.radius
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: cardItem.isCollapsed ? 0 : SVUnits.bigMargin * 1.5
-                                    spacing: SVUnits.margin
-
-                                    QGCColoredImage {
-                                        Layout.alignment: Qt.AlignVCenter | (cardItem.isCollapsed ? Qt.AlignHCenter : Qt.AlignLeft)
-                                        Layout.preferredWidth: SVUnits.width * 2
-                                        Layout.preferredHeight: SVUnits.width * 2
-                                        source: cardItem.itemData.icon
-                                        color: "white"
-                                    }
-
-                                    QGCLabel {
-                                        Layout.fillWidth: true
-                                        text: cardItem.itemData.title
-                                        font.pointSize: SVUnits.svText
-                                        color: qgcPalette.text
-                                        wrapMode: Text.WordWrap
-                                        visible: !cardItem.isCollapsed
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: cardMouse
-
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: root.selectedDropdown = cardItem.isSelected ? -1 : cardItem.index
+                                QGCLabel {
+                                    width: parent.width - x
+                                    text: root.getStartedSteps[index]
+                                    wrapMode: Text.WordWrap
+                                    font.pointSize: SVUnits.svText
+                                    color: qgcPalette.text
                                 }
                             }
                         }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: root.selectedDropdown === -1 ? 0 : SVUnits.objectHeight
-                        color: qgcPalette.windowShade
-                        radius: SVUnits.radius
-                        visible: root.selectedDropdown !== -1
-                        clip: true
-
-                        Behavior on height {
-                            NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
-                        }
 
                         QGCLabel {
-                            anchors.fill: parent
-                            anchors.margins: SVUnits.bigMargin * 1.5
-                            text: root.selectedDropdown === -1 ? "" : root.getStartedItems[root.selectedDropdown].details
+                            width: parent.width
+                            text: qsTr("The default profiles target DigiView hosts at 192.168.4.60 and 192.168.4.126. Your system may use different addresses.")
                             wrapMode: Text.WordWrap
-                            verticalAlignment: Text.AlignVCenter
                             font.pointSize: SVUnits.svText
                             color: qgcPalette.text
                         }
