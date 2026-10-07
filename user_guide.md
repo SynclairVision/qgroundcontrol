@@ -7,7 +7,7 @@ Synclair: QGroundControl adds SynclairVision camera and DigiView controls to QGr
 1. Start **SynclairQGC** and open **Fly** view.
 2. Make sure the SynclairVision overlay is visible. The default shortcut is **O**.
 3. Open **Settings > Network**.
-4. Select a DigiView network profile and choose **Connect**.
+4. Select or create a DigiView network profile and choose **Connect**.
 5. Wait for video and control communication to become active.
 6. Select a camera view before using movement, zoom, per-view overlays, or tracking.
 
@@ -87,9 +87,7 @@ The optional recording information box can also be enabled or disabled from sett
 
 ### 3.2 Photos
 
-Use **Photo** to request a still image from DigiView.
-
-Still-image capture only works when the connected DigiView release supports the capture command. If the button is present but nothing is saved, verify DigiView capture support before troubleshooting QGroundControl.
+Use **Photo** to request a still image from DigiView. Currently unsupported.
 
 ---
 
