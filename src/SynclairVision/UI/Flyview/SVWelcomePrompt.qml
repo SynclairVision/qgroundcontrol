@@ -18,7 +18,7 @@ FirstRunPrompt {
 
     readonly property var getStartedSteps: [
         qsTr("Start SynclairQGC and open Fly view."),
-        qsTr("Make sure the SynclairVision overlay is visible. The default shortcut is O."),
+        qsTr("Make sure the SynclairVision overlay is visible. While Fly view is active, the default shortcut is O."),
         qsTr("Open Settings > Network."),
         qsTr("Select or create a DigiView network profile and choose Connect."),
         qsTr("Wait for video and control communication to become active."),
