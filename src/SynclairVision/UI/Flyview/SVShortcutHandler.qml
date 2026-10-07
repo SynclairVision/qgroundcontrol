@@ -66,6 +66,63 @@ Item {
         }
     })
 
+    function keyboardShortcutSequence(key) {
+        if (key === undefined || key === 0
+                || key === SVSettings.scrollUp || key === SVSettings.scrollDown
+                || key < SVSettings.mouseButtonShortcutBase) {
+            return ""
+        }
+
+        if (key >= Qt.Key_A && key <= Qt.Key_Z) {
+            return String.fromCharCode(key)
+        }
+
+        if (key >= Qt.Key_0 && key <= Qt.Key_9) {
+            return String.fromCharCode(key)
+        }
+
+        if (key >= Qt.Key_F1 && key <= Qt.Key_F35) {
+            return "F" + (key - Qt.Key_F1 + 1)
+        }
+
+        switch (key) {
+        case Qt.Key_Up: return "Up"
+        case Qt.Key_Down: return "Down"
+        case Qt.Key_Left: return "Left"
+        case Qt.Key_Right: return "Right"
+        case Qt.Key_Space: return "Space"
+        case Qt.Key_Return:
+        case Qt.Key_Enter: return "Enter"
+        case Qt.Key_Tab: return "Tab"
+        case Qt.Key_Backspace: return "Backspace"
+        case Qt.Key_Delete: return "Delete"
+        case Qt.Key_Escape: return "Escape"
+        case Qt.Key_Home: return "Home"
+        case Qt.Key_End: return "End"
+        case Qt.Key_PageUp: return "PgUp"
+        case Qt.Key_PageDown: return "PgDown"
+        case Qt.Key_Plus: return "+"
+        case Qt.Key_Minus: return "-"
+        case Qt.Key_Period: return "."
+        case Qt.Key_Comma: return ","
+        default: return ""
+        }
+    }
+
+    // Keyboard presses can be accepted by QGC before QGCApplication emits
+    // unacceptedKeyEvent. Keep the overlay toggle as a window shortcut so the
+    // configured key can always enter/leave the Synclair overlay in Fly view.
+    Shortcut {
+        id: synclairOverlayShortcut
+
+        sequence: root.keyboardShortcutSequence(SVSettings.shortcutSynclair)
+        context: Qt.WindowShortcut
+        autoRepeat: false
+        enabled: root.shortcutInputEligible && sequence !== ""
+
+        onActivated: root.dispatch(SVSettings.shortcutSynclair)
+    }
+
     // --- GEMENSAM AKTIONSTRIGGER ---
     function triggerHeldActions(strength) {
         if (!root.visualShortcutsEligible) return
