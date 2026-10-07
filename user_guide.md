@@ -259,7 +259,7 @@ Developer settings expose lower-level AI, camera, and tracking parameters. These
 | Yaw right | D |
 | Zoom in | Q |
 | Zoom out | E |
-| Fine movement modifier | Shift |
+| Fine movement/camera modifier | Shift |
 | SynclairVision overlay | O |
 | HUD | H |
 | Toolbar | B |
@@ -268,19 +268,19 @@ Developer settings expose lower-level AI, camera, and tracking parameters. These
 | Grid | G |
 | Photo | P |
 | Record | R |
-| Camera 1 | 1 |
-| Camera 2 | 2 |
-| Camera 3 | 3 |
-| Camera 4 | 4 |
-| Next camera | V |
-| Deselect camera | C |
+| View 1 | 1 |
+| View 2 | 2 |
+| View 3 | 3 |
+| View 4 | 4 |
+| Next View | V |
+| Deselect View | C |
 | Pixel tracking | T |
 | GNSS tracking | Y |
 | Manual tracking | U |
 | Deselect tracking | I |
 | Lock target | J |
 
-Shortcuts are ignored while a text input or modal overlay has focus. Some movement and zoom shortcuts also require an active camera selection.
+Shortcuts are ignored while a text input or modal overlay has focus. Some movement and zoom shortcuts also require an active View selection.
 
 ---
 
