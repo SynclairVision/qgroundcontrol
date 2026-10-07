@@ -13,7 +13,7 @@ Synclair: QGroundControl is SynclairVision's QGroundControl fork for operating D
 ## Quick start
 
 1. Start `SynclairQGC` and open **Fly** view.
-2. Enable the SynclairVision overlay if it is hidden. The default shortcut is **O**.
+2. Enable the SynclairVision overlay if it is hidden. While **Fly** view is active, the default shortcut is **O**.
 3. Open **Settings > Network**, select a DigiView profile, and choose **Connect**.
 4. Select a camera view before using camera movement, zoom, overlays, or tracking.
 5. Use the on-screen controls or the configured shortcuts. Default movement controls are **W/A/S/D** for pitch/yaw and **Q/E** for zoom.
