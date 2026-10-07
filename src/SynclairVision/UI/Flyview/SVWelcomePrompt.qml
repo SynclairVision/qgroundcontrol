@@ -9,10 +9,37 @@ import QGroundControl.Controls
 
 FirstRunPrompt {
     id: root
+
     title: qsTr("Welcome to Synclair: QGroundControl")
     promptId: QGroundControl.corePlugin.svInitialWelcomePromptId
 
-    // Ensure it updates settings when closed so it won't open again
+    readonly property string userGuideUrl: "https://github.com/SynclairVision/qgroundcontrol/blob/master/user_guide.md"
+    readonly property string releaseNotesUrl: "https://github.com/SynclairVision/qgroundcontrol/releases"
+
+    property int selectedDropdown: -1
+    readonly property var getStartedItems: [
+        {
+            title: qsTr("Connect to DigiView"),
+            icon: "/qmlimages/network_connected.svg",
+            details: qsTr("Open Settings > Network, select the DigiView profile for your payload, and choose Connect. Wait for control and video to become active before operating the camera.")
+        },
+        {
+            title: qsTr("Select a camera"),
+            icon: "/qmlimages/layout_single.svg",
+            details: qsTr("Select a camera view before using movement, zoom, per-view overlays, or tracking. Use the layout menu to arrange the available camera feeds.")
+        },
+        {
+            title: qsTr("Control the payload"),
+            icon: "/qmlimages/settings_controls.svg",
+            details: qsTr("Use the on-screen control panel or keyboard shortcuts to move and zoom the selected camera. Controls can be locked to prevent accidental input.")
+        },
+        {
+            title: qsTr("Use AI and tracking"),
+            icon: "/qmlimages/tracking_main.svg",
+            details: qsTr("Enable the AI overlay when supported, then use Pixel, GNSS, or Manual tracking from the tracking menu. Validate tracking behavior for your DigiView and aircraft configuration before operational use.")
+        }
+    ]
+
     onClosed: {
         var appSettings = QGroundControl.settingsManager.appSettings
         var shownIds = appSettings.firstRunPromptIdsShown.rawValue
@@ -25,8 +52,6 @@ FirstRunPrompt {
 
     QGCPalette { id: qgcPalette }
 
-    property int selectedDropdown: -1
-
     Flickable {
         id: contentFlickable
 
@@ -37,12 +62,11 @@ FirstRunPrompt {
         contentWidth: width
         contentHeight: contentColumn.height
 
-        ScrollBar.vertical: ScrollBar {
-            id: contentScrollBar
-        }
+        ScrollBar.vertical: ScrollBar { }
 
         Column {
             id: contentColumn
+
             width: parent.width
             spacing: SVUnits.bigMargin * 2
 
@@ -53,11 +77,9 @@ FirstRunPrompt {
                 radius: SVUnits.radius
 
                 Image {
-                    id: noVideo
                     anchors.fill: parent
                     source: Qt.resolvedUrl("../Resources/Images/no_video_background.png")
                     fillMode: Image.PreserveAspectCrop
-                    visible: true
                 }
 
                 Rectangle {
@@ -80,8 +102,8 @@ FirstRunPrompt {
                     spacing: SVUnits.bigMargin
 
                     Image {
-                        width: SVUnits.objectWidth * 1
-                        height: SVUnits.objectWidth * 1
+                        width: SVUnits.objectWidth
+                        height: SVUnits.objectWidth
                         source: "/res/resources/svlogo.png"
                         fillMode: Image.PreserveAspectCrop
                         smooth: true
@@ -92,7 +114,7 @@ FirstRunPrompt {
 
                     Column {
                         anchors.top: parent.top
-                        anchors.topMargin: - SVUnits.margin
+                        anchors.topMargin: -SVUnits.margin
                         spacing: 0
 
                         QGCLabel {
@@ -102,7 +124,7 @@ FirstRunPrompt {
                         }
 
                         QGCLabel {
-                            text: qsTr("Test test, test test, and test test")
+                            text: qsTr("Automate your drone")
                             font.pointSize: SVUnits.svText
                             color: qgcPalette.text
                         }
@@ -121,7 +143,6 @@ FirstRunPrompt {
                 spacing: SVUnits.bigMargin * 4
 
                 Column {
-                    id: about
                     width: parent.width
                     spacing: SVUnits.margin
 
@@ -134,7 +155,7 @@ FirstRunPrompt {
                     QGCLabel {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Lalalalal al al la la l l l al al al fld fdf afeuiahfeuia uifeuai fehuia huiefahuf ehuif huieaf uhiea uhlfeahlu flehuaflhu eabf ebiulfe abiulf eabliufe abiulfe abiuf ebau fbiuf abiu fbiuf  febiuf ebiuf bbuibiuf bulfeabulfb ubu leafbl e bualfbeualfb uelbua lbufelbu albueablufebafbeablfeabfebiuafbuebufbeuabfuebuafbefbueafbuiebuafbiubuiubibu ")
+                        text: qsTr("Synclair: QGroundControl combines the familiar QGroundControl flight workflow with SynclairVision tools for DigiView camera payloads. Connect to DigiView to manage live video, camera layouts, movement and zoom, AI overlays and tracking, recording, network profiles, and operator shortcuts from the Fly view.")
                         font.pointSize: SVUnits.svText
                         color: qgcPalette.text
                     }
@@ -143,21 +164,20 @@ FirstRunPrompt {
                         width: SVUnits.objectWidth
                         height: SVUnits.margin - SVUnits.lineWidth * 2
                         color: "transparent"
-                        border.width: 0
                     }
 
                     Rectangle {
-                        width: SVUnits.objectWidth
+                        width: parent.width
                         height: SVUnits.lineWidth
                         color: qgcPalette.windowShade
-                        border.width: 0
                     }
                 }
 
                 Column {
                     id: getStarted
+
                     width: parent.width
-                    spacing: SVUnits.margin * 1
+                    spacing: SVUnits.margin
 
                     QGCLabel {
                         text: qsTr("Get Started")
@@ -167,6 +187,7 @@ FirstRunPrompt {
 
                     RowLayout {
                         id: getStartedRow
+
                         width: parent.width
                         spacing: SVUnits.bigMargin
 
@@ -175,25 +196,25 @@ FirstRunPrompt {
                         readonly property real expandedCardWidth: width - (3 * collapsedCardWidth) - (3 * spacing)
 
                         Repeater {
-                            model: 4
+                            model: root.getStartedItems.length
 
                             Item {
                                 id: cardItem
 
-
                                 required property int index
-
                                 readonly property bool isSelected: root.selectedDropdown === index
                                 readonly property bool hasSelection: root.selectedDropdown !== -1
                                 readonly property bool isCollapsed: hasSelection && !isSelected
+                                readonly property var itemData: root.getStartedItems[index]
 
                                 Layout.fillWidth: false
                                 Layout.preferredWidth: {
-                                    if (!cardItem.hasSelection) return getStartedRow.defaultCardWidth;
-                                    return cardItem.isSelected ? getStartedRow.expandedCardWidth : getStartedRow.collapsedCardWidth;
+                                    if (!hasSelection) {
+                                        return getStartedRow.defaultCardWidth
+                                    }
+                                    return isSelected ? getStartedRow.expandedCardWidth : getStartedRow.collapsedCardWidth
                                 }
 
-                                // Consistent card height prevents vertical size jumping
                                 implicitHeight: SVUnits.objectHeight * 0.5
 
                                 Behavior on Layout.preferredWidth {
@@ -204,117 +225,81 @@ FirstRunPrompt {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     normalColor: qgcPalette.windowShade
-                                    hovered: mouseArea.containsMouse
+                                    hovered: cardMouse.containsMouse
                                     checkable: true
                                     checked: cardItem.isSelected
-                                    pressed: mouseArea.pressed
-                                    hoverPosition: Qt.point(mouseArea.mouseX, mouseArea.mouseY)
+                                    pressed: cardMouse.pressed
+                                    hoverPosition: Qt.point(cardMouse.mouseX, cardMouse.mouseY)
                                     radius: SVUnits.radius
                                 }
 
-                                ColumnLayout {
+                                RowLayout {
                                     anchors.fill: parent
                                     anchors.margins: cardItem.isCollapsed ? 0 : SVUnits.bigMargin * 1.5
                                     spacing: SVUnits.margin
 
-                                    clip: true
-
                                     QGCColoredImage {
-                                        Layout.alignment: cardItem.isCollapsed ? (Qt.AlignVCenter | Qt.AlignHCenter) : (Qt.AlignVCenter | Qt.AlignLeft)
+                                        Layout.alignment: Qt.AlignVCenter | (cardItem.isCollapsed ? Qt.AlignHCenter : Qt.AlignLeft)
                                         Layout.preferredWidth: SVUnits.width * 2
                                         Layout.preferredHeight: SVUnits.width * 2
-                                        source: "/qmlimages/settings_main.svg"
+                                        source: cardItem.itemData.icon
                                         color: "white"
                                     }
 
                                     QGCLabel {
                                         Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignLeft
-                                        text: qsTr("Connect to Digiview")
+                                        text: cardItem.itemData.title
                                         font.pointSize: SVUnits.svText
                                         color: qgcPalette.text
-                                        horizontalAlignment: Text.AlignLeft
+                                        wrapMode: Text.WordWrap
                                         visible: !cardItem.isCollapsed
-
-
                                     }
-                                }
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-
-                                    anchors.leftMargin: cardItem.index === 0 ? 0 : 5
-                                    anchors.rightMargin: cardItem.index === getStartedRow.count - 1 ? 0 : 5
-                                    height: 20
-                                    color: qgcPalette.windowShade
-                                    visible: cardItem.isSelected
-                                    opacity: 0.5
-                                    y: parent.height
                                 }
 
                                 MouseArea {
-                                    id: mouseArea
+                                    id: cardMouse
+
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: {
-                                        if (root.selectedDropdown === cardItem.index) {
-                                            root.selectedDropdown = -1
-                                        } else {
-                                            root.selectedDropdown = cardItem.index
-                                        }
-                                    }
+                                    onClicked: root.selectedDropdown = cardItem.isSelected ? -1 : cardItem.index
                                 }
                             }
                         }
                     }
 
                     Rectangle {
-                        width: SVUnits.objectWidth
-                        height: SVUnits.margin / 4 - 2
-                        color: "transparent"
-                        border.width: 0
-                    }
-
-                    Rectangle {
                         width: parent.width
-                        height: SVUnits.objectHeight * 2
+                        height: root.selectedDropdown === -1 ? 0 : SVUnits.objectHeight
                         color: qgcPalette.windowShade
                         radius: SVUnits.radius
                         visible: root.selectedDropdown !== -1
                         clip: true
 
-                        Behavior on visible {
-                            NumberAnimation { duration: 200 }
+                        Behavior on height {
+                            NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
                         }
 
                         QGCLabel {
-                            anchors.centerIn: parent
-                            text: qsTr("Content panel for option %1").arg(root.selectedDropdown + 1)
+                            anchors.fill: parent
+                            anchors.margins: SVUnits.bigMargin * 1.5
+                            text: root.selectedDropdown === -1 ? "" : root.getStartedItems[root.selectedDropdown].details
+                            wrapMode: Text.WordWrap
+                            verticalAlignment: Text.AlignVCenter
                             font.pointSize: SVUnits.svText
                             color: qgcPalette.text
                         }
                     }
 
                     Rectangle {
-                        width: SVUnits.objectWidth
-                        height: SVUnits.margin / 4
-                        color: "transparent"
-                        border.width: 0
-                    }
-
-                    Rectangle {
                         width: parent.width
                         height: SVUnits.lineWidth
                         color: qgcPalette.windowShade
-                        border.width: 0
                     }
                 }
 
                 Column {
-                    id: learnMore
                     width: parent.width
-                    spacing: SVUnits.margin * 1
+                    spacing: SVUnits.margin
 
                     QGCLabel {
                         text: qsTr("Learn More")
@@ -322,105 +307,104 @@ FirstRunPrompt {
                         color: qgcPalette.buttonHighlight
                     }
 
-                    Column {
+                    Item {
                         width: parent.width
-                        spacing: SVUnits.margin
+                        height: SVUnits.objectWidth / 1.5
 
-                        Item {
-                            width: parent.width
-                            height: SVUnits.objectWidth / 1.5
-
-                            SVBackground {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                transparentBackground: true
-                                hovered: mouseAreaDocumentation.containsMouse
-                                checkable: true
-                                pressed: mouseAreaDocumentation.pressed
-                                hoverPosition: Qt.point(mouseAreaDocumentation.mouseX, mouseAreaDocumentation.mouseY)
-                                radius: SVUnits.radius
-                            }
-
-                            MouseArea {
-                                id: mouseAreaDocumentation
-                                anchors.fill: parent
-                                hoverEnabled: true
-                            }
-
-                            QGCLabel {
-                                anchors.left: parent.left
-                                anchors.leftMargin: SVUnits.bigMargin
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("User Documentation")
-                                font.pointSize: SVUnits.svText
-                                color: qgcPalette.text
-                            }
-
-                            QGCColoredImage {
-                                anchors.right: parent.right
-                                anchors.rightMargin: SVUnits.bigMargin
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: SVUnits.width * 2
-                                height: SVUnits.width * 2
-                                source: "/qmlimages/external_link.svg"
-                                color: "white"
-                            }
+                        SVBackground {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            transparentBackground: true
+                            hovered: documentationMouse.containsMouse
+                            checkable: true
+                            pressed: documentationMouse.pressed
+                            hoverPosition: Qt.point(documentationMouse.mouseX, documentationMouse.mouseY)
+                            radius: SVUnits.radius
                         }
 
-                        Rectangle {
-                            width: parent.width
-                            height: SVUnits.lineWidth
-                            color: qgcPalette.windowShade
-                            border.width: 0
+                        QGCLabel {
+                            anchors.left: parent.left
+                            anchors.leftMargin: SVUnits.bigMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("User Documentation")
+                            font.pointSize: SVUnits.svText
+                            color: qgcPalette.text
                         }
 
-                        Item {
-                            width: parent.width
-                            height: SVUnits.objectWidth / 1.5
+                        QGCColoredImage {
+                            anchors.right: parent.right
+                            anchors.rightMargin: SVUnits.bigMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: SVUnits.width * 2
+                            height: SVUnits.width * 2
+                            source: "/qmlimages/external_link.svg"
+                            color: "white"
+                        }
 
-                            SVBackground {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                transparentBackground: true
-                                hovered: mouseAreaPatch.containsMouse
-                                checkable: true
-                                pressed: mouseAreaPatch.pressed
-                                hoverPosition: Qt.point(mouseAreaPatch.mouseX, mouseAreaPatch.mouseY)
-                                radius: SVUnits.radius
-                            }
+                        MouseArea {
+                            id: documentationMouse
 
-                            MouseArea {
-                                id: mouseAreaPatch
-                                anchors.fill: parent
-                                hoverEnabled: true
-                            }
-
-                            QGCLabel {
-                                anchors.left: parent.left
-                                anchors.leftMargin: SVUnits.bigMargin
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Patch Notes")
-                                font.pointSize: SVUnits.svText
-                                color: qgcPalette.text
-                            }
-
-                            QGCColoredImage {
-                                anchors.right: parent.right
-                                anchors.rightMargin: SVUnits.bigMargin
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: SVUnits.width * 2
-                                height: SVUnits.width * 2
-                                source: "/qmlimages/external_link.svg"
-                                color: "white"
-                            }
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally(root.userGuideUrl)
                         }
                     }
 
                     Rectangle {
-                        width: SVUnits.objectWidth
+                        width: parent.width
                         height: SVUnits.lineWidth
                         color: qgcPalette.windowShade
-                        border.width: 0
+                    }
+
+                    Item {
+                        width: parent.width
+                        height: SVUnits.objectWidth / 1.5
+
+                        SVBackground {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            transparentBackground: true
+                            hovered: releaseNotesMouse.containsMouse
+                            checkable: true
+                            pressed: releaseNotesMouse.pressed
+                            hoverPosition: Qt.point(releaseNotesMouse.mouseX, releaseNotesMouse.mouseY)
+                            radius: SVUnits.radius
+                        }
+
+                        QGCLabel {
+                            anchors.left: parent.left
+                            anchors.leftMargin: SVUnits.bigMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Release Notes")
+                            font.pointSize: SVUnits.svText
+                            color: qgcPalette.text
+                        }
+
+                        QGCColoredImage {
+                            anchors.right: parent.right
+                            anchors.rightMargin: SVUnits.bigMargin
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: SVUnits.width * 2
+                            height: SVUnits.width * 2
+                            source: "/qmlimages/external_link.svg"
+                            color: "white"
+                        }
+
+                        MouseArea {
+                            id: releaseNotesMouse
+
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally(root.releaseNotesUrl)
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: SVUnits.lineWidth
+                        color: qgcPalette.windowShade
                     }
                 }
             }
