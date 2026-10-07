@@ -112,13 +112,16 @@ Item {
     // Keyboard presses can be accepted by QGC before QGCApplication emits
     // unacceptedKeyEvent. Keep the overlay toggle as a window shortcut so the
     // configured key can always enter/leave the Synclair overlay in Fly view.
+    readonly property string synclairOverlayKeySequence:
+        root.keyboardShortcutSequence(SVSettings.shortcutSynclair)
+
     Shortcut {
         id: synclairOverlayShortcut
 
-        sequence: root.keyboardShortcutSequence(SVSettings.shortcutSynclair)
+        sequence: root.synclairOverlayKeySequence
         context: Qt.WindowShortcut
         autoRepeat: false
-        enabled: root.shortcutInputEligible && sequence !== ""
+        enabled: root.shortcutInputEligible && root.synclairOverlayKeySequence.length > 0
 
         onActivated: root.dispatch(SVSettings.shortcutSynclair)
     }
