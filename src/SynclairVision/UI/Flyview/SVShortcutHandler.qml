@@ -59,9 +59,10 @@ Item {
         && !SVState.lockControls && SVState.cameraSelected !== -1
 
     readonly property var actionPolicies: ({
+        // The overlay toggle must remain available in Fly view even while the
+        // Synclair overlay (and therefore the rest of the shortcuts) is disabled.
         [root.actionSynclair]: {
-            allowWhenShortcutsDisabled: true,
-            requiresVisibleToolbar: true
+            allowWhenShortcutsDisabled: true
         }
     })
 
