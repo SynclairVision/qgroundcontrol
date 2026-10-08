@@ -5,7 +5,7 @@ Synclair: QGroundControl adds SynclairVision camera and DigiView controls to QGr
 ## 1. Getting started
 
 1. Start **SynclairQGC** and open **Fly** view.
-2. Make sure the SynclairVision overlay is visible. While **Fly** view is active, the default shortcut is **O**.
+2. Make sure the SynclairVision overlay is visible.
 3. Open **Settings > Network**.
 4. Select or create a DigiView network profile and choose **Connect**.
 5. Wait for video and control communication to become active.
@@ -258,7 +258,7 @@ Developer settings expose lower-level AI, camera, and tracking parameters. These
 | Zoom in | Q |
 | Zoom out | E |
 | Fine movement/camera modifier | Shift |
-| SynclairVision overlay | O |
+| Disable SynclairVision overlay | O |
 | HUD | H |
 | Toolbar | B |
 | AI detection overlay | F |
