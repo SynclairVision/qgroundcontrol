@@ -14,8 +14,6 @@ QGC_LOGGING_CATEGORY(DigiviewManagerLog, "Digiview.Manager")
 
 namespace {
 
-constexpr uint8_t kCamTargetingStabilizationFlagsUnchanged = 0xFF;
-constexpr uint8_t kCamTargetingStabilizationFlagsAll = 0x07;
 constexpr float kOneShotIntervalUs = -1000.0F;
 constexpr float kVideoOutputParametersSubscriptionIntervalUs = 100000.0F;
 constexpr int kVideoOutputTransactionTimeoutMs = 2000;
@@ -597,7 +595,7 @@ bool DigiviewManager::setDetectionTracking(
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsAll,
+        static_cast<uint8_t>(View::Stabilization::FULL),
         0.0f,
         0.0f,
         0.0f,
@@ -634,7 +632,7 @@ bool DigiviewManager::clearDetectionTracking(
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsAll,
+        static_cast<uint8_t>(View::Stabilization::FULL),
         0.0f,
         0.0f,
         0.0f,
@@ -897,6 +895,12 @@ bool DigiviewManager::sendCamTargetingParameters(
 {
     if (targeting_mode >= View::NUM_TARGETING_MODES) {
         emit commandRejected(tr("The requested DigiView targeting mode is invalid and was not sent."));
+        return false;
+    }
+
+    if (stabilization_flags > static_cast<uint8_t>(View::Stabilization::NONE)
+        && stabilization_flags != static_cast<uint8_t>(View::Stabilization::UNSET)) {
+        emit commandRejected(tr("The requested DigiView stabilization mode is invalid and was not sent."));
         return false;
     }
 
@@ -1196,7 +1200,7 @@ bool DigiviewManager::setSingleTargetTrackingTarget(int camId, float xOffset, fl
 
     return sendCamTargetingParameters(
         _streamName, static_cast<uint8_t>(camId), View::SINGLE_TARGET_TRACKING,
-        0, 0.0f, 0.0f, 0.0f, kCamTargetingStabilizationFlagsUnchanged,
+        0, 0.0f, 0.0f, 0.0f, static_cast<uint8_t>(View::Stabilization::UNSET),
         xOffset, yOffset, 0.0f, 0.0f, 0.0f, 0, -1, 0);
 }
 
@@ -1223,7 +1227,7 @@ bool DigiviewManager::setCameraCursorTarget(int camId, float xOffset, float yOff
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         xOffset,
         yOffset,
         0.0f,
@@ -1252,7 +1256,7 @@ bool DigiviewManager::setCameraManualTarget(int camId, float latitude, float lon
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         latitude,
@@ -1353,7 +1357,7 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
         payload.yaw = 0.0f;
         payload.pitch = 0.0f;
         payload.roll = 0.0f;
-        payload.stabilization_flags = kCamTargetingStabilizationFlagsAll;
+        payload.stabilization_flags = static_cast<uint8_t>(View::Stabilization::FULL);
         payload.x_offset = 0.0f;
         payload.y_offset = 0.0f;
         payload.target_latitude = 0.0f;
@@ -1423,7 +1427,7 @@ void DigiviewManager::changeEuler(int camId, float yaw, float pitch)
         yaw,
         pitch,
         0,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0, 0,
         0, 0, 0,
         0,

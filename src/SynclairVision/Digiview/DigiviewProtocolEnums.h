@@ -43,6 +43,16 @@ enum TargetingMode : uint8_t {
 };
 Q_ENUM_NS(TargetingMode)
 
+/// @brief QML names for the shared per-view stabilization modes.
+enum StabilizationMode : uint8_t {
+    StabilizationFull = static_cast<uint8_t>(::View::Stabilization::FULL),
+    StabilizationPilot = static_cast<uint8_t>(::View::Stabilization::PILOT),
+    StabilizationRoll = static_cast<uint8_t>(::View::Stabilization::ROLL),
+    StabilizationNone = static_cast<uint8_t>(::View::Stabilization::NONE),
+    StabilizationUnchanged = static_cast<uint8_t>(::View::Stabilization::UNSET),
+};
+Q_ENUM_NS(StabilizationMode)
+
 enum SingleTargetTrackingCommand : uint8_t {
     SttCommandOff = ::CMD_OFF,
     SttCommandSetTargetVector = ::CMD_SET_TARGET_VECTOR,

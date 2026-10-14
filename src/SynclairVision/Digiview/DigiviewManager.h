@@ -205,6 +205,9 @@ public:
         float latitude, float longitude, float altitude,
         float distance, float width, float height,
         uint16_t track_id, quint64 publish_timestamp_us, uint8_t view_id);
+    /// @brief Sends a targeting command after validating targeting and stabilization modes.
+    /// @param stabilization_flags View::Stabilization value; UNSET leaves the current mode unchanged.
+    /// @return Whether the validated command was sent.
     Q_INVOKABLE bool sendCamTargetingParameters(
         QString stream_name, uint8_t cam_id, uint8_t targeting_mode, uint8_t euler_delta,
         float yaw, float pitch, float roll, uint8_t stabilization_flags,
