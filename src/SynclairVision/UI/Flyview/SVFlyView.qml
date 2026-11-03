@@ -116,14 +116,12 @@ Item {
             rejectionMessage = qsTr("Immediate tracking is unavailable because video content is not visible or decoding.")
         } else if (!root.digiviewOutputGeometryAvailable) {
             rejectionMessage = qsTr("Immediate tracking is unavailable because video geometry is missing.")
-        } else if (SVState.cameraSelected < 0) {
-            rejectionMessage = qsTr("Immediate tracking is unavailable because no camera is selected.")
         }
 
         if (!rejectionMessage) {
             for (let index = 0; index < cameraLayerRepeater.count; ++index) {
                 const cameraLayer = cameraLayerRepeater.itemAt(index)
-                if (!cameraLayer || cameraLayer.cameraSlot !== SVState.cameraSelected) {
+                if (!cameraLayer) {
                     continue
                 }
 
@@ -131,8 +129,7 @@ Item {
                 // SVCameraLayer-local coordinate system as the working UI click.
                 const target = cameraLayer.currentPointerTarget()
                 if (!target) {
-                    rejectionMessage = qsTr("The selected point is outside the selected camera view.")
-                    break
+                    continue
                 }
 
                 if (SVState.submitImmediatePointTracking(
@@ -140,15 +137,18 @@ Item {
                         target.cameraSlot,
                         target.normalizedX,
                         target.normalizedY)) {
+                    if (SVState.cameraSelected !== target.cameraSlot) {
+                        SVState.setCamera(target.cameraSlot)
+                    }
                     return true
                 }
 
-                rejectionMessage = qsTr("Immediate tracking was rejected because no camera is selected, controls are locked, or the camera state changed.")
+                rejectionMessage = qsTr("Tracking could not start. Check the camera connection and control lock.")
                 break
             }
 
             if (!rejectionMessage) {
-                rejectionMessage = qsTr("The selected camera view is unavailable.")
+                rejectionMessage = qsTr("Move the pointer over a camera view to start tracking.")
             }
         }
 

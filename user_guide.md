@@ -93,7 +93,8 @@ Use **Photo** to request a still image from DigiView. Currently unsupported.
 
 ## 4. Tracking
 
-Tracking commands operate on the active camera view.
+Pixel and GNSS shortcuts use the camera view under the pointer.
+Other tracking controls use the selected camera view.
 
 ### 4.1 Pixel tracking
 
@@ -103,9 +104,16 @@ Tracking commands operate on the active camera view.
 2. Start Pixel tracking.
 3. Select the target point in the video.
 
+To start immediately, move the pointer over the desired camera view and press **T** (the default Pixel shortcut).
+The view under the pointer is selected when tracking starts, even if another view or no view was selected.
+
 ### 4.2 GNSS tracking
 
 **GNSS** creates a tracking target from a selected position in the video when the required navigation data is available.
+
+Press **Y** (the default GNSS shortcut) to use the pointer position in any visible camera view and select that view.
+Tracking shortcuts require an active connection, visible video and unlocked controls.
+If the pointer is outside all camera views, no tracking request is sent and the selected view stays unchanged.
 
 ### 4.3 Manual tracking
 
