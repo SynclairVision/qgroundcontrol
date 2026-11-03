@@ -2,8 +2,8 @@
 
 #include "DigiviewLegacyTcpTransport.h"
 #include "MAVLinkProtocol.h"
+#include "MAVLinkLib.h"
 #include "QGCLoggingCategory.h"
-#include "sv_mavlink_dialect/mavlink.h"
 
 #include <QtCore/QByteArray>
 #include <QtCore/QTimer>

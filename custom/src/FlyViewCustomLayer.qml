@@ -34,13 +34,17 @@ Item {
     QGCToolInsets {
         id: toolInsets
 
-        leftEdgeTopInset: parentToolInsets.leftEdgeTopInset
+        leftEdgeTopInset: dclinkPanel.visible
+            ? Math.max(parentToolInsets.leftEdgeTopInset, dclinkPanel.x + dclinkPanel.width)
+            : parentToolInsets.leftEdgeTopInset
         leftEdgeCenterInset: parentToolInsets.leftEdgeCenterInset
         leftEdgeBottomInset: parentToolInsets.leftEdgeBottomInset
         rightEdgeTopInset: parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset: parentToolInsets.rightEdgeCenterInset
         rightEdgeBottomInset: parentToolInsets.rightEdgeBottomInset
-        topEdgeLeftInset: parentToolInsets.topEdgeLeftInset
+        topEdgeLeftInset: dclinkPanel.visible
+            ? Math.max(parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
+            : parentToolInsets.topEdgeLeftInset
         topEdgeCenterInset: parentToolInsets.topEdgeCenterInset
         topEdgeRightInset: parentToolInsets.topEdgeRightInset
         bottomEdgeLeftInset: parentToolInsets.bottomEdgeLeftInset
@@ -80,6 +84,17 @@ Item {
             && videoControl
             && videoControl.pipState.state !== videoControl.pipState.windowState
         z: 1
+    }
+
+    SVDCLinkPanel {
+        id: dclinkPanel
+
+        x: root.parentToolInsets.leftEdgeTopInset + SVUnits.margin
+        width: Math.min(ScreenTools.defaultFontPixelHeight * 15, Math.max(0, root.width - x))
+        maximumHeight: root.height
+        visible: SVState.synclairOverlay && root.flyView && root.flyView.customLayerMainWindowIsMap
+            && root.mapControl && root.mapControl.visible && !SVState.cursorTrackingSessionActive
+        z: 2
     }
 
     SVShortcutHandler {

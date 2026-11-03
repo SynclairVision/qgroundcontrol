@@ -1,3 +1,4 @@
 [submodule "message-definitions"]
 	path = message-definitions
 	url = git@github.com:SynclairVision/message-definitions.git
+	branch = pr/add_qgc_dclink_mavlink

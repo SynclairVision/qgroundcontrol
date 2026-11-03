@@ -1,52 +1,56 @@
 include_guard(GLOBAL)
 
-set(_synclair_message_definitions_source_dir "${CMAKE_SOURCE_DIR}/message-definitions")
-set(_synclair_message_definitions_binary_dir "${CMAKE_BINARY_DIR}/SynclairVision/message-definitions")
+set(_synclair_definitions "${CMAKE_SOURCE_DIR}/message-definitions")
+set(_synclair_mavlink "${_synclair_definitions}/mavlink")
+set(_synclair_xml_source "${_synclair_mavlink}/message_definitions/v1.0")
+set(_synclair_binary "${CMAKE_BINARY_DIR}/SynclairVision/message-definitions")
 
-if(NOT EXISTS "${_synclair_message_definitions_source_dir}/CMakeLists.txt"
-   OR NOT EXISTS "${_synclair_message_definitions_source_dir}/mavlink/message_definitions/v1.0/all.xml"
+foreach(_required IN ITEMS
+    "${_synclair_xml_source}/all.xml"
+    "${_synclair_definitions}/sv_mavlink_dialect.xml"
+    "${_synclair_definitions}/copilot_mavlink_dialect.xml"
 )
-    message(FATAL_ERROR
-        "Synclair: Recursive message-definitions submodules are missing. "
-        "Run 'git submodule update --init --recursive' or 'just submodules', then configure again."
-    )
-endif()
+    if(NOT EXISTS "${_required}")
+        message(FATAL_ERROR
+            "Synclair: Required MAVLink definitions are missing: ${_required}. "
+            "Run 'git submodule update --init --recursive' or 'just submodules', then configure again."
+        )
+    endif()
+endforeach()
 
-set(DIGIVIEW_MAVLINK_WIRE_PROTOCOL "${QGC_MAVLINK_VERSION}" CACHE STRING
-    "MAVLink wire protocol version used for generated C headers" FORCE
-)
-add_subdirectory(
-    "${_synclair_message_definitions_source_dir}"
-    "${_synclair_message_definitions_binary_dir}"
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(QGC_MAVLINK_GENERATED_DIR "${_synclair_binary}/generated/include/mavlink/v${QGC_MAVLINK_VERSION}")
+set(QGC_MAVLINK_XML_DIR "${_synclair_binary}/mavlink/message_definitions/v1.0")
+set(QGC_MAVLINK_COMPONENT_METADATA_DIR "${_synclair_mavlink}/component_metadata")
+set(_synclair_stage_script "${CMAKE_CURRENT_LIST_DIR}/StageMAVLinkDefinitions.cmake")
+set(_synclair_generated_header "${QGC_MAVLINK_GENERATED_DIR}/all/mavlink.h")
+
+file(GLOB _synclair_xml_files CONFIGURE_DEPENDS "${_synclair_xml_source}/*.xml")
+
+add_custom_command(
+    OUTPUT "${_synclair_generated_header}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${QGC_MAVLINK_GENERATED_DIR}"
+    COMMAND "${CMAKE_COMMAND}"
+        "-DDEFINITIONS_SOURCE=${_synclair_definitions}"
+        "-DXML_OUTPUT=${QGC_MAVLINK_XML_DIR}"
+        -P "${_synclair_stage_script}"
+    COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${_synclair_mavlink}"
+        "${Python3_EXECUTABLE}" -m pymavlink.tools.mavgen
+        --lang=C "--wire-protocol=${QGC_MAVLINK_VERSION}" --no-validate
+        "--output=${QGC_MAVLINK_GENERATED_DIR}" "${QGC_MAVLINK_XML_DIR}/all.xml"
+    DEPENDS
+        ${_synclair_xml_files}
+        "${_synclair_definitions}/sv_mavlink_dialect.xml"
+        "${_synclair_definitions}/copilot_mavlink_dialect.xml"
+        "${_synclair_stage_script}"
+    COMMENT "Generating standard, DigiView and Copilot MAVLink headers"
+    VERBATIM
 )
 
-if(NOT TARGET DigiView::MAVLinkHeaders)
-    message(FATAL_ERROR "Synclair: message-definitions did not provide DigiView::MAVLinkHeaders")
-endif()
-
-get_target_property(_synclair_generated_include_root
-    DigiView::MAVLinkHeaders INTERFACE_INCLUDE_DIRECTORIES
-)
-list(LENGTH _synclair_generated_include_root _synclair_generated_include_root_count)
-if(NOT _synclair_generated_include_root_count EQUAL 1)
-    message(FATAL_ERROR
-        "Synclair: DigiView::MAVLinkHeaders must provide exactly one generated include root; "
-        "found ${_synclair_generated_include_root_count}"
-    )
-endif()
-
-set(QGC_MAVLINK_GENERATED_DIR
-    "${_synclair_generated_include_root}/mavlink/v${QGC_MAVLINK_VERSION}"
-)
-set(QGC_MAVLINK_XML_DIR
-    "${_synclair_message_definitions_binary_dir}/mavlink/message_definitions/v1.0"
-)
-set(QGC_MAVLINK_COMPONENT_METADATA_DIR
-    "${_synclair_message_definitions_source_dir}/mavlink/component_metadata"
-)
-
+add_custom_target(synclair_mavlink_generate_headers DEPENDS "${_synclair_generated_header}")
 add_library(mavlink INTERFACE)
-add_dependencies(mavlink digiview_mavlink_generate_headers)
+add_dependencies(mavlink synclair_mavlink_generate_headers)
 target_include_directories(mavlink INTERFACE
     "${QGC_MAVLINK_GENERATED_DIR}"
     "${QGC_MAVLINK_GENERATED_DIR}/${QGC_MAVLINK_DIALECT}"

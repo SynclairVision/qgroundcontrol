@@ -16,10 +16,13 @@ qt_add_qml_module(SynclairVisionUIModule
     VERSION 1.0
     RESOURCE_PREFIX /qml
     SOURCES
+        ../DCLink/DCLinkManager.cc
+        ../DCLink/DCLinkManager.h
         ../Digiview/DigiviewProtocolEnums.h
         SVBackend.cc
         SVBackend.h
     QML_FILES
+        Flyview/SVDCLinkPanel.qml
         Flyview/SVFlyView.qml
         Flyview/SVFlyViewMenus.qml
         Flyview/SVFlyViewMenusList.js
@@ -136,10 +139,15 @@ qt_add_resources(SynclairVisionUIModule synclairvision_qmlimages
 
 )
 
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../DCLink
+)
 
 target_include_directories(SynclairVisionUIModule PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../DCLink
     ${CMAKE_CURRENT_SOURCE_DIR}/../Digiview
     ${CMAKE_SOURCE_DIR}/message-definitions
     ${CMAKE_SOURCE_DIR}/src/VideoManager
+    ${CMAKE_SOURCE_DIR}/src/MAVLink
 )

@@ -77,6 +77,37 @@ Per-view overlays are available for the active camera.
 
 ---
 
+### 2.6 DCLink pilot commands
+
+With the SynclairVision overlay enabled, switch to the map and open **DCLink**.
+Opening or closing this menu only changes its visibility. Select an action explicitly to send a command.
+
+| Action | Copter | Plane |
+| --- | --- | --- |
+| Cancel | Request safe cancellation | Request safe cancellation |
+| Hold | Hold | Loiter |
+| Mission | Run Copilot's stored route | Unavailable |
+| Follow Target / Intercept | Follow Target | Intercept |
+| Target Loiter | Target Loiter | Target Loiter |
+
+Follow, Intercept and Target Loiter use the target currently observed by Copilot.
+Mission uses Copilot's stored route and its onboard target-follow handoff behavior.
+The menu does not select map coordinates or change command parameters.
+
+DCLink shares the selected DigiView profile's MAVLink UDP connection and works without video decoding.
+The Maintenance router exposes this connection on port **14570**; Copilot uses its onboard endpoint on port **14880**.
+The legacy TCP control fallback does not carry DCLink commands.
+Aircraft telemetry must arrive on the shared connection. If QGC has an active aircraft, its system ID must match.
+Commands are unavailable when multiple aircraft appear on the same bus, since the Copilot messages have no destination.
+Use one operator client on this bus; do not run a second command client alongside QGC.
+
+The menu shows the aircraft type, current command, target status and request feedback.
+Only commands exposed to the onboard Pilot role are available. An accepted request is not confirmation of flight completion.
+Requests are sent once. If an acknowledgement is missing, QGC reports an unknown outcome and refreshes current status;
+it never resends a command after a timeout or reconnect. Check the reported state before selecting another action.
+
+---
+
 ## 3. Recording and photos
 
 ### 3.1 Recording
