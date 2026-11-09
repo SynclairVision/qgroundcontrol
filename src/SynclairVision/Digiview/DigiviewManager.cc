@@ -595,7 +595,7 @@ bool DigiviewManager::setDetectionTracking(
         0.0f,
         0.0f,
         0.0f,
-        static_cast<uint8_t>(View::Stabilization::FULL),
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         0.0f,
@@ -627,12 +627,12 @@ bool DigiviewManager::clearDetectionTracking(
     const bool camTargetSent = sendCamTargetingParameters(
         _streamName,
         cam,
-        View::DETECTION,
+        View::DIRECTIONAL,
         true,
         0.0f,
         0.0f,
         0.0f,
-        static_cast<uint8_t>(View::Stabilization::FULL),
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         0.0f,
@@ -1357,7 +1357,7 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
         payload.yaw = 0.0f;
         payload.pitch = 0.0f;
         payload.roll = 0.0f;
-        payload.stabilization_flags = static_cast<uint8_t>(View::Stabilization::FULL);
+        payload.stabilization_flags = static_cast<uint8_t>(View::Stabilization::UNSET);
         payload.x_offset = 0.0f;
         payload.y_offset = 0.0f;
         payload.target_latitude = 0.0f;
