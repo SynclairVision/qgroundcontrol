@@ -428,11 +428,11 @@ QtObject {
             ? cameraTrackingIds[cameraSlot]
             : activeCameraTrackingId
 
-        if (trackingId !== '') {
-            if (!digiview || !digiview.clearCurrentTarget(cameraSlot)) {
-                return false
-            }
+        // A dropped track can still be displayed during DigiView's loss hold.
+        if (digiview && digiview.clearCurrentTarget(cameraSlot)) {
             setActiveCameraTrackingId('')
+        } else if (trackingId !== '') {
+            return false
         }
 
         cancelCursorTrackingSelection()

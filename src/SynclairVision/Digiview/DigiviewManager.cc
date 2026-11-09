@@ -1169,39 +1169,27 @@ bool DigiviewManager::setSingleTargetTrackingTarget(int camId, float xOffset, fl
         return false;
     }
 
-    if (_activeTargets[camId].type != ActiveTarget::Type::None
-        && !clearCurrentTarget(camId)) {
-        return false;
-    }
-
-    const bool sttTargetSent = sendSingleTargetTrackingParameters(
+    // DigiView resolves this selection against the currently displayed view.
+    return sendSingleTargetTrackingParameters(
         CMD_SET_TARGET_VECTOR,
         _streamName,
         static_cast<uint8_t>(camId),
         xOffset,
         yOffset,
+        std::numeric_limits<uint8_t>::max(),
+        0,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
         0,
         0,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0,
-        0,
-        0);
-    if (!sttTargetSent) {
-        return false;
-    }
-
-    return sendCamTargetingParameters(
-        _streamName, static_cast<uint8_t>(camId), View::SINGLE_TARGET_TRACKING,
-        0, 0.0f, 0.0f, 0.0f, static_cast<uint8_t>(View::Stabilization::UNSET),
-        xOffset, yOffset, 0.0f, 0.0f, 0.0f, 0, -1, 0);
+        1);
 }
 
 bool DigiviewManager::setCameraCursorTarget(int camId, float xOffset, float yOffset)
@@ -1375,6 +1363,14 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
         return true;
     }
     case ActiveTarget::Type::None:
+        if (_cameraStates[cameraSlot].hasTargetState) {
+            if (_cameraStates[cameraSlot].targetingMode == View::SINGLE_TARGET_TRACKING) {
+                return stopSingleTargetTracking(cameraSlot);
+            }
+            if (_cameraStates[cameraSlot].targetingMode == View::DETECTION) {
+                return clearDetectionTracking(cameraSlot);
+            }
+        }
         return false;
     }
 
