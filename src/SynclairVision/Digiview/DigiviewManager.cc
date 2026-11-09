@@ -1289,27 +1289,35 @@ bool DigiviewManager::lockCurrentTarget(int cameraSlot)
         return false;
     }
 
+    const auto sendTargetLock = [this](const mavlink_cam_targeting_parameters_t& target) {
+        // Locking a target must not replay view settings from status responses.
+        mavlink_cam_targeting_parameters_t command {};
+        std::memcpy(command.stream_name, target.stream_name, sizeof(command.stream_name));
+        command.cam_id = target.cam_id;
+        command.targeting_mode = target.targeting_mode;
+        command.track_id = target.track_id;
+        command.view_id = target.view_id;
+        command.euler_delta = 1;
+        command.stabilization_flags = static_cast<uint8_t>(View::Stabilization::UNSET);
+        command.lock_target = 1;
+        if (target.targeting_mode == View::COORDINAL) {
+            command.target_latitude = target.target_latitude;
+            command.target_longitude = target.target_longitude;
+            command.target_altitude = target.target_altitude;
+        }
+        return _sendCamTargetingParameters(command);
+    };
+
     const ActiveTarget activeTarget = _activeTargets[cameraSlot];
     switch (activeTarget.type) {
-    case ActiveTarget::Type::CamTargeting: {
-        auto payload = activeTarget.camTargeting;
-        payload.lock_target = 1;
-        return _sendCamTargetingParameters(payload);
-    }
-    case ActiveTarget::Type::PendingDetection: {
-        auto payload = activeTarget.camTargeting;
-        payload.lock_target = 1;
-        return _sendCamTargetingParameters(payload);
-    }
+    case ActiveTarget::Type::CamTargeting:
+    case ActiveTarget::Type::PendingDetection:
+    case ActiveTarget::Type::Detection:
+        return sendTargetLock(activeTarget.camTargeting);
     case ActiveTarget::Type::SingleTargetTracking: {
         auto payload = activeTarget.singleTargetTracking;
         payload.lock_target = 1;
         return _sendSingleTargetTrackingParameters(payload);
-    }
-    case ActiveTarget::Type::Detection: {
-        auto camTargeting = activeTarget.camTargeting;
-        camTargeting.lock_target = 1;
-        return _sendCamTargetingParameters(camTargeting);
     }
     case ActiveTarget::Type::None:
         return false;
