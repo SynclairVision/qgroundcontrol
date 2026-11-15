@@ -1,61 +1,41 @@
 # SynclairVision: QGroundControl
 
-**Automate your drone**
-
-Synclair: QGroundControl is SynclairVision's QGroundControl fork for operating DigiView-enabled camera payloads. It keeps the standard QGroundControl flight workflow and adds SynclairVision controls for live video, camera layouts, payload movement and zoom, AI overlays and tracking, recording, network profiles, and operator shortcuts.
+SynclairQGC is SynclairVision's QGroundControl fork for DigiView-enabled camera payloads.
+It adds camera controls, layouts, AI overlays and tracking to the standard flight workflow.
 
 ## Documentation
 
-- [User guide](user_guide.md) - setup, connection, controls, layouts, tracking, settings, shortcuts, and troubleshooting.
-- [Releases](https://github.com/SynclairVision/qgroundcontrol/releases) - release downloads and release notes.
-- [QGroundControl documentation](https://docs.qgroundcontrol.com/) - upstream QGroundControl flight-planning and vehicle documentation.
+- [Downloads](https://github.com/SynclairVision/qgroundcontrol/releases) - SynclairVision release packages for Linux and Windows.
+- [User guide](user_guide.md) - installation, connection, controls and troubleshooting.
+- [QGroundControl user documentation](https://docs.qgroundcontrol.com/) - aircraft setup and mission planning.
+- [License](.github/COPYING.md) - upstream QGroundControl licensing.
 
-## Quick start
-
-1. Start `SynclairQGC` and open **Fly** view.
-2. Enable the SynclairVision overlay if it is hidden. While **Fly** view is active, the default shortcut is **O**.
-3. Open **Settings > Network**, select a DigiView profile, and choose **Connect**.
-4. Select a camera view before using camera movement, zoom, overlays, or tracking.
-5. Use the on-screen controls or the configured shortcuts. Default movement controls are **W/A/S/D** for pitch/yaw and **Q/E** for zoom.
-
-See the [user guide](user_guide.md) for the complete operator workflow.
+Use SynclairVision packages for the DigiView integration. Upstream QGroundControl downloads do not include it.
+The rest of this README is for developers.
 
 ## Build from source
 
-### Tested development environment
-
-- Ubuntu 24.04
-- Qt 6.11.1
-- Git
-- CMake
-- Ninja
-- GCC/G++
-- Python 3
+Use Git, CMake, Ninja, Python 3 and the Qt version/modules in
+[build-config.json](.github/build-config.json). Linux instructions target Ubuntu 24.04 with GCC/G++.
+Windows requires Visual Studio 2022's **Desktop development with C++** workload and the matching MSVC Qt kit.
 
 ### Clone
 
-Clone the repository and initialize all submodules:
-
 ```bash
-git clone git@github.com:SynclairVision/qgroundcontrol.git
+git clone --recurse-submodules git@github.com:SynclairVision/qgroundcontrol.git
 cd qgroundcontrol
-git submodule update --init --recursive
 ```
 
-Recursive submodules are required. This fork generates its custom MAVLink dialect headers from the pinned `message-definitions` submodule and its nested `mavlink` submodule.
+Recursive submodules are required: this fork generates MAVLink headers from the pinned
+`message-definitions` submodule and its nested `mavlink` submodule.
 
 ### Linux setup
 
-Install system dependencies:
+Install dependencies and the repository-configured Qt SDK:
 
 ```bash
 python3 ./tools/setup/install_dependencies --platform debian
-```
-
-Install the Python tooling for Qt, activate the generated virtual environment, and install the Qt version and modules configured by the repository:
-
-```bash
-python3 ./tools/setup/install_python.py qt
+python3 ./tools/setup/install_python.py qt,scripts
 source .venv/bin/activate
 
 QT_VERSION="$(python3 ./tools/setup/read_config.py --get qt.version)"
@@ -70,19 +50,7 @@ python3 ./tools/setup/install_qt.py install \
     --outdir "$HOME/Qt"
 ```
 
-Use the repository-configured Qt SDK rather than Debian/Ubuntu Qt packages. `linux_gcc_64` is installed on disk as `gcc_64`.
-
-Set and verify the Qt root:
-
-```bash
-QT_ROOT="$HOME/Qt/$QT_VERSION/gcc_64"
-test -x "$QT_ROOT/bin/qt-cmake"
-"$QT_ROOT/bin/qt-cmake" --version
-```
-
-### Build and run
-
-Configure a fresh Release build:
+Configure, build and run. The `linux_gcc_64` SDK is installed as `gcc_64`:
 
 ```bash
 python3 ./tools/configure.py \
@@ -90,14 +58,44 @@ python3 ./tools/configure.py \
     --release \
     --qt-root "$HOME/Qt/$QT_VERSION/gcc_64" \
     -- --fresh
-```
-
-Build and launch:
-
-```bash
 cmake --build build --parallel
 ./build/Release/SynclairQGC
 ```
+
+### Windows setup and build
+
+Install the repository-configured Qt version and modules using the
+[upstream build instructions](https://dev.qgroundcontrol.com/en/getting_started/).
+Run these commands from an **x64 Native Tools Command Prompt for VS 2022** in the repository root:
+
+```bat
+python tools/setup/install_dependencies --platform windows --nsis
+python tools/setup/install_python.py qt,scripts
+.venv\Scripts\activate.bat
+python tools/configure.py -B build --release --qt-root "C:/Qt/<version>/msvc2022_64" -- --fresh
+cmake --build build --parallel
+build\Release\SynclairQGC.exe
+```
+
+Replace `<version>` with the configured Qt version. NSIS is needed for the Windows installer.
+
+## Package a release manually
+
+Build from a clean checkout of the intended version tag and initialize its recursive submodules before configuring.
+The application and Windows installer derive their version from Git tags; an untagged build can retain the previous version.
+Use the default `custom/` overlay, which names the application `SynclairQGC`.
+
+After the Release build above, package on each platform:
+
+| Platform | Command | Output in `build/` |
+| --- | --- | --- |
+| Linux | `cmake --install build --config Release` | `SynclairQGC-<architecture>.AppImage` |
+| Windows | `cmake --build build --config Release --target qgc-package` | `SynclairQGC-installer-AMD64.exe` and its SHA-256 file |
+
+On Linux, create the checksum file with `(cd build && sha256sum SynclairQGC-*.AppImage > SHA256SUMS)`.
+Check installation, video, camera controls and tracking against the matching DigiView release before publishing.
+Upload the Linux/Windows packages and checksums to a draft GitHub release for review.
+The upstream **Release** workflow targets `master` and additional platforms; use this manual path for SynclairVision releases.
 
 ## Development
 
@@ -105,19 +103,14 @@ Most SynclairVision-specific code lives under `src/SynclairVision`:
 
 - `Digiview/` contains the DigiView communication and protocol integration.
 - `UI/` contains the SynclairVision Fly-view overlay, camera controls, settings, resources, and operator workflows.
-- `UI/Settings/SVSettings.qml` stores operator settings and state persisted by the SynclairVision UI.
-- `UI/Flyview/SVFlyViewMenusList.js` defines the main operator menu models.
+- `UI/Settings/SVSettings.qml` stores persistent operator settings.
+- `UI/Flyview/SVFlyViewMenusList.js` defines operator menus.
 
-When adding SynclairVision UI code, keep custom files under `src/SynclairVision`, use the `SV` file prefix, reuse the shared QGC palette and SynclairVision resources, use `SVUnits.qml` for sizing, and keep layouts responsive across fullscreen and windowed use.
+Keep product-specific changes in `src/SynclairVision` and the `custom/` overlay to ease upstream rebases.
+Use the `SV` file prefix, the shared QGC palette, SynclairVision resources and `SVUnits.qml` sizing.
+See [CODING_STYLE.md](CODING_STYLE.md) for conventions and [tools/README.md](tools/README.md) for development tools.
 
-## Known limitations
-
-The current codebase still contains release-relevant limitations that should be validated before publishing a production release:
-
-- Tracking workflows are still marked for rework and need end-to-end validation with the target DigiView release.
-- Positioning the control panel at the top can constrain the zoom-button sizing.
-- Joystick and zoom sensitivity can differ between pointer interaction and shortcuts.
-- Some shortcuts can still respond outside their intended Fly-view context.
-- Still-image capture depends on support in the connected DigiView release.
-
-For user-facing behavior and workarounds, see [Troubleshooting and known limitations](user_guide.md#7-troubleshooting-and-known-limitations).
+Native model-tool instructions live in [DigiView](https://github.com/SynclairVision/DigiView/blob/dev-0.7.1/README.md).
+Device configuration and WebMenu instructions live in
+[Maintenance](https://github.com/SynclairVision/Maintenance/blob/dev-0.7.1-cleanup/docs/external/webmenu.md).
+For current limitations, see [Troubleshooting](user_guide.md#7-troubleshooting-and-known-limitations).
