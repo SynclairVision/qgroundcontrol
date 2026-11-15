@@ -7,7 +7,6 @@ It adds camera controls, layouts, AI overlays and tracking to the standard fligh
 
 - [Downloads](https://github.com/SynclairVision/qgroundcontrol/releases) - SynclairVision release packages for Linux and Windows.
 - [User guide](user_guide.md) - installation, connection, controls and troubleshooting.
-- [Release notes](CHANGELOG.md) - changes in this fork.
 - [QGroundControl user documentation](https://docs.qgroundcontrol.com/) - aircraft setup and mission planning.
 - [License](.github/COPYING.md) - upstream QGroundControl licensing.
 
@@ -95,7 +94,7 @@ After the Release build above, package on each platform:
 
 On Linux, create the checksum file with `(cd build && sha256sum SynclairQGC-*.AppImage > SHA256SUMS)`.
 Check installation, video, camera controls and tracking against the matching DigiView release before publishing.
-Upload the Linux/Windows packages, checksums and [release notes](CHANGELOG.md) to a draft GitHub release for review.
+Upload the Linux/Windows packages and checksums to a draft GitHub release for review.
 The upstream **Release** workflow targets `master` and additional platforms; use this manual path for SynclairVision releases.
 
 ## Development
