@@ -2,21 +2,12 @@ name: SynclairQGC 0.7.1 Packages
 
 on:
   workflow_dispatch:
-    inputs:
-      platform:
-        description: Platform to package
-        type: choice
-        default: All
-        options:
-          - All
-          - Linux-x86_64
-          - Windows-x64
 
 permissions:
   contents: read
 
 concurrency:
-  group: synclair-0.7.1-packages-${{ inputs.platform || 'All' }}
+  group: synclair-0.7.1-windows-package
   cancel-in-progress: false
 
 jobs:
@@ -28,20 +19,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: Linux-x86_64
-            runner: ubuntu-24.04
-            qt_host: linux
-            qt_arch: linux_gcc_64
-            preset: Linux
-            filename: SynclairQGC-x86_64.AppImage
           - platform: Windows-x64
             runner: windows-2022
             qt_host: windows
             qt_arch: win64_msvc2022_64
             preset: Windows
             filename: SynclairQGC-installer-AMD64.exe
-        exclude:
-          - platform: ${{ inputs.platform == 'Windows-x64' && 'Linux-x86_64' || inputs.platform == 'Linux-x86_64' && 'Windows-x64' || 'none' }}
     defaults:
       run:
         shell: bash
