@@ -34,8 +34,8 @@ Item {
         rightEdgeTopInset: parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset: parentToolInsets.rightEdgeCenterInset
         rightEdgeBottomInset: parentToolInsets.rightEdgeBottomInset
-        topEdgeLeftInset: dclinkNoseView.visible
-            ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkNoseView.y + dclinkNoseView.height)
+        topEdgeLeftInset: dclinkTargetViews.visible
+            ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkTargetViews.y + dclinkTargetViews.height)
             : (dclinkPanel.visible
                 ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
                 : root.parentToolInsets.topEdgeLeftInset)
@@ -111,8 +111,8 @@ Item {
         z: 2
     }
 
-    SVDCLinkNoseView {
-        id: dclinkNoseView
+    SVDCLinkTargetViews {
+        id: dclinkTargetViews
 
         x: dclinkPanel.x
         y: dclinkPanel.y + dclinkPanel.height + SVUnits.margin

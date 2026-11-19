@@ -45,11 +45,13 @@ Item {
     }
     readonly property var _target: client ? client.targetView : ({})
     readonly property real _vertical: _elevationValid ? Math.max(-1, Math.min(1, -_target.elevationDeg / 60)) : 0
+    property bool showHeader: true
+    property alias expanded: header.checked
     required property var client
     readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.5
     property real maximumHeight: parent ? parent.height : implicitHeight
-    readonly property real minimumHeight: header.implicitHeight + readout.implicitHeight
-        + stateLabel.implicitHeight + margin * 4
+    readonly property real minimumHeight: (showHeader ? header.implicitHeight : 0) + readout.implicitHeight
+        + stateLabel.implicitHeight + margin * (showHeader ? 4 : 3)
     readonly property bool plotVisible: header.checked && maximumHeight >= _expandedHeight
 
     function angleText(value: real): string {
@@ -85,6 +87,8 @@ Item {
 
         QGCButton {
             id: header
+
+            visible: root.showHeader
 
             Accessible.description: qsTr("Show or hide aircraft-relative target angles")
             Accessible.name: qsTr("Nose view")
