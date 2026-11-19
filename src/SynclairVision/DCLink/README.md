@@ -7,6 +7,7 @@ defines schema 1 and coordinate conventions.
 
 | Property | Meaning |
 | --- | --- |
+| `supported` | Fresh STATUS advertises the selected-target view capability. |
 | `available` | A supported correlated snapshot from the aircraft on this connection is fresh. |
 | `present` | The selected target has remaining validity. |
 | `targetId`, `source` | Optional selected track/source metadata; null when no fresh target. |
@@ -109,3 +110,38 @@ reconnect, view switching and collapse/expand, constrained height, and both
 colour themes. Verify that the existing map gestures and pilot menu remain
 available. Live telemetry and integrated map interaction require validation
 in the complete application.
+
+## Integration and operator review
+
+The [operator guide](../../../docs/en/qgc-user-guide/fly_view/dclink.md)
+contains connection prerequisites, display semantics and a manual acceptance
+matrix. Display preferences use the existing `SVSettings` persistence/reset
+path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded` and
+`dclinkMapRangeRings`. Automatic compact layout does not overwrite the user's
+manual expansion preference.
+
+The standard QtLocation map attaches one `SVDCLinkTargetMapItems` group through
+the custom Fly View layer. The group reparents into the map before attachment,
+removes itself before destruction, and moves explicitly if the map object
+changes. It contains a validated target marker, a matching-aircraft context
+line and optional geographic distance rings. Target updates never set map
+centre, zoom, bearing or follow policy. The experimental GeoMap engine does
+not expose this attachment API; the target card stays available there.
+
+Marker taps open read-only details. The popup clears on loss, aircraft changes
+or leaving the card view, and its body scrolls within the current window.
+Control ownership comes from the fresh target snapshot, with no inference
+from command state. Shared-target-capable peers show observation freshness in
+the strip; status-only peers retain their existing high-level target text.
+
+Validation must distinguish the linked application, native-map simulated UI
+review, backend protocol review and actual vehicle operation. Do not treat a
+successful UI build or fake snapshot as hardware/flight validation. QGC's
+temporary no-test policy applies; use builds, lint/static checks and the
+manual scenarios in the operator guide.
+
+For this feature series, the target stream is supplied by DCLink's
+`feat/dclink-shared-target-data` branch (or a branch containing that work),
+using message-definitions `5170b62`. The `dclink-0.8-compatible` branch alone
+supplies the status/command integration; use the shared-target build to
+exercise nose, radar and geographic target data.

@@ -1,4 +1,7 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
+import QtPositioning
 
 import QGroundControl
 import QGroundControl.Controls
@@ -15,6 +18,13 @@ Item {
     readonly property var videoControl: flyView ? flyView.customLayerVideoControl : null
     readonly property var pipView: flyView ? flyView.customLayerPipView : null
     readonly property var widgetLayer: flyView ? flyView.customLayerWidgetLayer : null
+    readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
+    readonly property var _target: SVBackend.dclink.targetView
+    readonly property bool _targetMapAvailable: !!mapControl && typeof mapControl.addMapItemGroup === "function"
+    readonly property var _aircraftCoordinate: _activeVehicle && _target.available
+        && _activeVehicle.id === _target.vehicleSystemId && _activeVehicle.vehicleLinkManager
+        && !_activeVehicle.vehicleLinkManager.communicationLost && _activeVehicle.coordinate.isValid
+        ? _activeVehicle.coordinate : QtPositioning.coordinate()
     readonly property var toolbar: flyView ? flyView.customLayerToolbar : null
     readonly property bool statusStripBelowRightTools: width - parentToolInsets.leftEdgeTopInset
         - parentToolInsets.rightEdgeTopInset - SVUnits.margin * 2 < ScreenTools.defaultFontPixelWidth * 32
@@ -105,7 +115,7 @@ Item {
         x: root.parentToolInsets.leftEdgeTopInset + SVUnits.margin
         y: dclinkStatusStrip.visible ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin : 0
         width: Math.min(ScreenTools.defaultFontPixelHeight * 15, Math.max(0, root.width - x))
-        maximumHeight: Math.max(0, root.height - y)
+        maximumHeight: Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeLeftInset - SVUnits.margin)
         visible: SVState.synclairOverlay && root.flyView && root.flyView.customLayerMainWindowIsMap
             && root.mapControl && root.mapControl.visible && !SVState.cursorTrackingSessionActive
         z: 2
@@ -119,9 +129,41 @@ Item {
         width: dclinkPanel.width
         maximumHeight: Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeLeftInset - SVUnits.margin)
         client: SVBackend.dclink
+        rangeRings: SVSettings.dclinkMapRangeRings
+        mapAvailable: root._targetMapAvailable
+        onViewPreferenceChanged: (radarSelected, expanded) => {
+            SVSettings.dclinkTargetRadarSelected = radarSelected
+            SVSettings.dclinkTargetPlotExpanded = expanded
+        }
+        onRangeRingsRequested: (enabled) => SVSettings.dclinkMapRangeRings = enabled
         visible: dclinkPanel.visible && width >= ScreenTools.defaultFontPixelWidth * 18
             && maximumHeight >= minimumHeight
         z: 2
+    }
+
+    Binding {
+        target: dclinkTargetViews
+        property: "radarSelected"
+        value: SVSettings.dclinkTargetRadarSelected
+    }
+
+    Binding {
+        target: dclinkTargetViews
+        property: "expanded"
+        value: SVSettings.dclinkTargetPlotExpanded
+    }
+
+    Loader {
+        active: root._targetMapAvailable && dclinkPanel.visible
+        sourceComponent: Component {
+            SVDCLinkTargetMapItems {
+                client: SVBackend.dclink
+                mapControl: root.mapControl
+                aircraftCoordinate: root._aircraftCoordinate
+                rangeRings: SVSettings.dclinkMapRangeRings
+                onDetailsRequested: dclinkTargetViews.openDetails()
+            }
+        }
     }
 
     SVShortcutHandler {

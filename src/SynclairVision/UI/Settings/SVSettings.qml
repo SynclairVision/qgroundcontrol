@@ -22,6 +22,9 @@ QtObject {
         aiScanModelDraft: "",
         simplifiedUserInterface: false,
         alignHud: true,
+        dclinkTargetRadarSelected: false,
+        dclinkTargetPlotExpanded: true,
+        dclinkMapRangeRings: false,
         compassType: "horizontal",
         compassSize: 100,
         networkIPAdress: "192.168.4.60",
@@ -134,6 +137,9 @@ QtObject {
         property alias controlPanel: root.controlPanel
         property alias simplifiedUserInterface: root.simplifiedUserInterface
         property alias alignHud: root.alignHud
+        property alias dclinkTargetRadarSelected: root.dclinkTargetRadarSelected
+        property alias dclinkTargetPlotExpanded: root.dclinkTargetPlotExpanded
+        property alias dclinkMapRangeRings: root.dclinkMapRangeRings
         property alias compassType: root.compassType
         property alias compassSize: root.compassSize
         property alias controlPanelPosition: root.controlPanelPosition
@@ -525,6 +531,9 @@ QtObject {
 //---------------------------------
     property bool simplifiedUserInterface: false
     property bool alignHud: true
+    property bool dclinkTargetRadarSelected: false
+    property bool dclinkTargetPlotExpanded: true
+    property bool dclinkMapRangeRings: false
     property string compassType: "horizontal"
     property int compassSize: 100
 

@@ -689,6 +689,7 @@ QVariantMap DCLinkManager::targetView() const
     const auto elapsed = available ? _lastTarget.elapsed() : 0;
     const quint32 flags = available && elapsed < _targetRemainingMs ? _targetFlags : 0;
     QVariantMap view{
+        {QStringLiteral("supported"), connected() && bool(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)},
         {QStringLiteral("available"), available},
         {QStringLiteral("present"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_PRESENT)},
         {QStringLiteral("behind"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_BEHIND)},
