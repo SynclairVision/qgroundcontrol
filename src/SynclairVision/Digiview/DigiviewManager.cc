@@ -14,8 +14,6 @@ QGC_LOGGING_CATEGORY(DigiviewManagerLog, "Digiview.Manager")
 
 namespace {
 
-constexpr uint8_t kCamTargetingStabilizationFlagsUnchanged = 0xFF;
-constexpr uint8_t kCamTargetingStabilizationFlagsAll = 0x07;
 constexpr float kOneShotIntervalUs = -1000.0F;
 constexpr float kVideoOutputParametersSubscriptionIntervalUs = 100000.0F;
 constexpr int kVideoOutputTransactionTimeoutMs = 2000;
@@ -598,7 +596,7 @@ bool DigiviewManager::setDetectionTracking(
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsAll,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         0.0f,
@@ -630,12 +628,12 @@ bool DigiviewManager::clearDetectionTracking(
     const bool camTargetSent = sendCamTargetingParameters(
         _streamName,
         cam,
-        View::DETECTION,
+        View::DIRECTIONAL,
         true,
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsAll,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         0.0f,
@@ -940,6 +938,12 @@ bool DigiviewManager::sendCamTargetingParameters(
         return false;
     }
 
+    if (stabilization_flags > static_cast<uint8_t>(View::Stabilization::NONE)
+        && stabilization_flags != static_cast<uint8_t>(View::Stabilization::UNSET)) {
+        emit commandRejected(tr("The requested DigiView stabilization mode is invalid and was not sent."));
+        return false;
+    }
+
     mavlink_cam_targeting_parameters_t payload {};
 
     copyStringToCharBuf(stream_name, payload.stream_name, 16);
@@ -1239,39 +1243,27 @@ bool DigiviewManager::setSingleTargetTrackingTarget(int camId, float xOffset, fl
         return false;
     }
 
-    if (_activeTargets[camId].type != ActiveTarget::Type::None
-        && !clearCurrentTarget(camId)) {
-        return false;
-    }
-
-    const bool sttTargetSent = sendSingleTargetTrackingParameters(
+    // DigiView resolves this selection against the currently displayed view.
+    return sendSingleTargetTrackingParameters(
         CMD_SET_TARGET_VECTOR,
         _streamName,
         static_cast<uint8_t>(camId),
         xOffset,
         yOffset,
+        std::numeric_limits<uint8_t>::max(),
+        0,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
         0,
         0,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0,
-        0,
-        0);
-    if (!sttTargetSent) {
-        return false;
-    }
-
-    return sendCamTargetingParameters(
-        _streamName, static_cast<uint8_t>(camId), View::SINGLE_TARGET_TRACKING,
-        0, 0.0f, 0.0f, 0.0f, kCamTargetingStabilizationFlagsUnchanged,
-        xOffset, yOffset, 0.0f, 0.0f, 0.0f, 0, -1, 0);
+        1);
 }
 
 bool DigiviewManager::setCameraCursorTarget(int camId, float xOffset, float yOffset)
@@ -1297,7 +1289,7 @@ bool DigiviewManager::setCameraCursorTarget(int camId, float xOffset, float yOff
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         xOffset,
         yOffset,
         0.0f,
@@ -1326,7 +1318,7 @@ bool DigiviewManager::setCameraManualTarget(int camId, float latitude, float lon
         0.0f,
         0.0f,
         0.0f,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0.0f,
         0.0f,
         latitude,
@@ -1371,27 +1363,35 @@ bool DigiviewManager::lockCurrentTarget(int cameraSlot)
         return false;
     }
 
+    const auto sendTargetLock = [this](const mavlink_cam_targeting_parameters_t& target) {
+        // Locking a target must not replay view settings from status responses.
+        mavlink_cam_targeting_parameters_t command {};
+        std::memcpy(command.stream_name, target.stream_name, sizeof(command.stream_name));
+        command.cam_id = target.cam_id;
+        command.targeting_mode = target.targeting_mode;
+        command.track_id = target.track_id;
+        command.view_id = target.view_id;
+        command.euler_delta = 1;
+        command.stabilization_flags = static_cast<uint8_t>(View::Stabilization::UNSET);
+        command.lock_target = 1;
+        if (target.targeting_mode == View::COORDINAL) {
+            command.target_latitude = target.target_latitude;
+            command.target_longitude = target.target_longitude;
+            command.target_altitude = target.target_altitude;
+        }
+        return _sendCamTargetingParameters(command);
+    };
+
     const ActiveTarget activeTarget = _activeTargets[cameraSlot];
     switch (activeTarget.type) {
-    case ActiveTarget::Type::CamTargeting: {
-        auto payload = activeTarget.camTargeting;
-        payload.lock_target = 1;
-        return _sendCamTargetingParameters(payload);
-    }
-    case ActiveTarget::Type::PendingDetection: {
-        auto payload = activeTarget.camTargeting;
-        payload.lock_target = 1;
-        return _sendCamTargetingParameters(payload);
-    }
+    case ActiveTarget::Type::CamTargeting:
+    case ActiveTarget::Type::PendingDetection:
+    case ActiveTarget::Type::Detection:
+        return sendTargetLock(activeTarget.camTargeting);
     case ActiveTarget::Type::SingleTargetTracking: {
         auto payload = activeTarget.singleTargetTracking;
         payload.lock_target = 1;
         return _sendSingleTargetTrackingParameters(payload);
-    }
-    case ActiveTarget::Type::Detection: {
-        auto camTargeting = activeTarget.camTargeting;
-        camTargeting.lock_target = 1;
-        return _sendCamTargetingParameters(camTargeting);
     }
     case ActiveTarget::Type::None:
         return false;
@@ -1427,7 +1427,7 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
         payload.yaw = 0.0f;
         payload.pitch = 0.0f;
         payload.roll = 0.0f;
-        payload.stabilization_flags = kCamTargetingStabilizationFlagsAll;
+        payload.stabilization_flags = static_cast<uint8_t>(View::Stabilization::UNSET);
         payload.x_offset = 0.0f;
         payload.y_offset = 0.0f;
         payload.target_latitude = 0.0f;
@@ -1445,6 +1445,14 @@ bool DigiviewManager::clearCurrentTarget(int cameraSlot)
         return true;
     }
     case ActiveTarget::Type::None:
+        if (_cameraStates[cameraSlot].hasTargetState) {
+            if (_cameraStates[cameraSlot].targetingMode == View::SINGLE_TARGET_TRACKING) {
+                return stopSingleTargetTracking(cameraSlot);
+            }
+            if (_cameraStates[cameraSlot].targetingMode == View::DETECTION) {
+                return clearDetectionTracking(cameraSlot);
+            }
+        }
         return false;
     }
 
@@ -1497,7 +1505,7 @@ void DigiviewManager::changeEuler(int camId, float yaw, float pitch)
         yaw,
         pitch,
         0,
-        kCamTargetingStabilizationFlagsUnchanged,
+        static_cast<uint8_t>(View::Stabilization::UNSET),
         0, 0,
         0, 0, 0,
         0,

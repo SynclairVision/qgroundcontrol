@@ -1,222 +1,152 @@
-name: Custom Build
+name: SynclairQGC 0.7.1 Packages
 
 on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - 'docs/**'
-  pull_request:
-  merge_group:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: read
+
+concurrency:
+  group: synclair-0.7.1-windows-package
+  cancel-in-progress: false
 
 jobs:
-  changes:
-    uses: ./.github/workflows/_detect-changes.yml
-    with:
-      platform: custom-build
-
-  build:
-    name: Custom Plugin Build
-    needs: changes
-    if: needs.changes.outputs.should_build == 'true'
-    runs-on: >-
-      ${{
-        github.repository_owner == 'mavlink' &&
-        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
-        format('runs-on={0}/runner={1}', github.run_id,
-          vars.RUNS_ON_LINUX_BUILDER || 'linux-x64-builder-60gb') ||
-        'ubuntu-24.04'
-      }}
-    timeout-minutes: 120
-
+  package:
+    name: ${{ matrix.platform }} package
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows-x64
+            runner: windows-2022
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            preset: Windows
+            filename: SynclairQGC-installer-AMD64.exe
     defaults:
       run:
         shell: bash
+    env:
+      SOURCE_SHA: 963d0472929f095b94139954b1835a2cf2fec743
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-
-      - name: Enable RunsOn magic cache
-        if: github.repository_owner == 'mavlink' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: runs-on/action@v2
-        with:
-          metrics: cpu,network,memory,disk,io
-          show_costs: summary
-
-      - name: Checkout
+      - name: Checkout release sources
         uses: actions/checkout@v7
         with:
-          fetch-depth: 1
+          ref: 963d0472929f095b94139954b1835a2cf2fec743
+          fetch-depth: 0
+          submodules: recursive
           persist-credentials: false
 
-      - name: Setup Build Environment
+      - name: Set local build version
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          # The local tag supplies version metadata without publishing a tag or release.
+          if git show-ref --verify --quiet refs/tags/v0.7.1; then
+            test "$(git rev-parse 'v0.7.1^{commit}')" = "$SOURCE_SHA"
+          else
+            git tag v0.7.1 "$SOURCE_SHA"
+          fi
+          test "$(git describe --tags --exact-match HEAD)" = v0.7.1
+
+      - name: Set up build tools and Qt
         uses: ./.github/actions/build-setup
         with:
-          qt-host: linux
-          qt-arch: linux_gcc_64
+          qt-host: ${{ matrix.qt_host }}
+          qt-arch: ${{ matrix.qt_arch }}
           build-type: Release
-          save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          save-cache: 'false'
+          aqt-source: git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95
 
-      - name: Install Dependencies
+      - name: Install platform dependencies
         uses: ./.github/actions/install-dependencies
+        with:
+          nsis: ${{ runner.os == 'Windows' && 'true' || 'false' }}
 
-      - name: Configure
+      - name: Restore code-generator dependencies
+        uses: ./.github/actions/setup-python
+        with:
+          groups: scripts
+
+      - name: Configure SynclairQGC
         uses: ./.github/actions/cmake-configure
         with:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
-          preset: Linux
-          extra-args: -DQGC_CUSTOM_DIR=custom-example
+          preset: ${{ matrix.preset }}
+          stable: 'true'
+          testing: 'false'
+          extra-args: >-
+            -DQGC_CUSTOM_DIR=custom
+            -DQGC_BUILD_TESTING=OFF
+            -DQGC_ENABLE_GST_VIDEOSTREAMING=ON
+            ${{ runner.os == 'Windows' && '-DQGC_CPACK_GENERATOR=NSIS' || '' }}
 
-      - name: Build
+      - name: Build SynclairQGC
         uses: ./.github/actions/cmake-build
         with:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
+          parallel-jobs: '2'
 
-      - name: Create AppImage
+      - name: Create Linux AppImage
+        if: runner.os == 'Linux'
         uses: ./.github/actions/cmake-install
         with:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
 
-      - name: Verify Custom AppImage
-        uses: ./.github/actions/verify-executable
-        with:
-          binary-path: Custom-QGroundControl-x86_64.AppImage
-          type: appimage
-          working-dir: ${{ runner.temp }}/build
-
-  # Debug build with unit/integration tests: the custom plugin overlay changes real code paths
-  # (QGCCorePlugin overrides, disabled APM plugin), so the test suite must pass against it too.
-  test:
-    name: Custom Plugin Test Debug
-    needs: changes
-    if: needs.changes.outputs.should_build == 'true'
-    runs-on: >-
-      ${{
-        github.repository_owner == 'mavlink' &&
-        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
-        format('runs-on={0}/runner=linux-x64-tester', github.run_id) ||
-        'ubuntu-24.04'
-      }}
-    timeout-minutes: 120
-
-    # checks: write scoped here: only this job reports test results (dorny/test-reporter).
-    permissions:
-      contents: read
-      checks: write
-      id-token: write
-
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-
-      - name: Enable RunsOn magic cache
-        if: github.repository_owner == 'mavlink' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: runs-on/action@v2
-        with:
-          metrics: cpu,network,memory,disk,io
-          show_costs: summary
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Build Environment
-        uses: ./.github/actions/build-setup
-        with:
-          qt-host: linux
-          qt-arch: linux_gcc_64
-          build-type: Debug
-          cache-variant: custom
-          save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-
-      - name: Install Dependencies
-        uses: ./.github/actions/install-dependencies
-
-      - name: Configure
-        uses: ./.github/actions/cmake-configure
-        with:
-          build-dir: ${{ runner.temp }}/build
-          build-type: Debug
-          preset: Linux-debug
-          testing: 'true'
-          extra-args: -DQGC_CUSTOM_DIR=custom-example
-
-      - name: Build
+      - name: Create Windows installer
+        if: runner.os == 'Windows'
         uses: ./.github/actions/cmake-build
         with:
           build-dir: ${{ runner.temp }}/build
-          build-type: Debug
+          build-type: Release
+          target: qgc-package
+          parallel: 'false'
 
-      # Split by label so Unit parallelizes; Integration serializes on shared MockLink/LinkManager state.
-      - name: Run Unit Tests (parallel)
-        id: unit_tests
-        uses: ./.github/actions/run-unit-tests
-        with:
-          build-dir: ${{ runner.temp }}/build
-          junit-output: junit-results-custom-unit.xml
-          ctest-output: test-output-custom-unit.txt
-          include-labels: 'Unit'
-          exclude-labels: 'Flaky|Network'
-          parallel: 'auto'
-          repeat: 'until-pass:2'
+      - name: Collect package and SHA-256 checksum
+        shell: python
+        env:
+          BUILD_DIR: ${{ runner.temp }}/build
+          OUTPUT_DIR: ${{ runner.temp }}/packages
+          PACKAGE_FILE: ${{ matrix.filename }}
+        run: |
+          import hashlib
+          import os
+          from pathlib import Path
+          import shutil
 
-      - name: Run Integration Tests (serial)
-        id: integration_tests
-        if: always() && !cancelled() && steps.unit_tests.conclusion != 'cancelled'
-        uses: ./.github/actions/run-unit-tests
-        with:
-          build-dir: ${{ runner.temp }}/build
-          junit-output: junit-results-custom-integration.xml
-          ctest-output: test-output-custom-integration.txt
-          include-labels: 'Integration'
-          # StockUI tests assert stock UI elements the custom overlay intentionally replaces
-          exclude-labels: 'Flaky|Network|StockUI'
-          parallel: '1'
+          build = Path(os.environ['BUILD_DIR'])
+          header = (build / 'qgc_version.h').read_text()
+          if '#define QGC_APP_VERSION_STR "v0.7.1"' not in header:
+              raise SystemExit('Unexpected application version')
+          if '#define QGC_APP_NAME "SynclairQGC"' not in header:
+              raise SystemExit('Unexpected application name')
+          package = build / os.environ['PACKAGE_FILE']
+          if not package.is_file() or package.stat().st_size == 0:
+              raise SystemExit(f'Missing or empty package: {package}')
+          with package.open('rb') as stream:
+              digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+          checksum = package.with_name(package.name + '.sha256')
+          if checksum.exists():
+              fields = checksum.read_text().split()
+              if fields != [digest, package.name]:
+                  raise SystemExit('Existing package checksum does not match')
+          output = Path(os.environ['OUTPUT_DIR'])
+          output.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(package, output / package.name)
+          (output / checksum.name).write_text(f'{digest}  {package.name}\n')
+          print(f'{package.name}: {digest}')
 
-      - name: Report Test Results (unit)
-        if: always() && !cancelled() && steps.unit_tests.conclusion != 'skipped'
-        uses: ./.github/actions/test-report
+      - name: Upload package
+        uses: actions/upload-artifact@v7
         with:
-          name: Custom Unit Tests
-          upload-codecov: ${{ vars.CODECOV_TEST_ANALYTICS == 'true' }}
-          codecov-flags: custom-unit
-          build-dir: ${{ runner.temp }}/build
-          junit-file: junit-results-custom-unit.xml
-          output-file: test-output-custom-unit.txt
-          artifact-name: test-results-custom-unit
-          retention-days: 7
-
-      - name: Report Test Results (integration)
-        if: always() && !cancelled() && steps.integration_tests.conclusion != 'skipped'
-        uses: ./.github/actions/test-report
-        with:
-          name: Custom Integration Tests
-          upload-codecov: ${{ vars.CODECOV_TEST_ANALYTICS == 'true' }}
-          codecov-flags: custom-integration
-          build-dir: ${{ runner.temp }}/build
-          junit-file: junit-results-custom-integration.xml
-          output-file: test-output-custom-integration.txt
-          artifact-name: test-results-custom-integration
-          retention-days: 7
+          name: SynclairQGC-0.7.1-${{ matrix.platform }}
+          path: ${{ runner.temp }}/packages/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
