@@ -34,9 +34,11 @@ Item {
         rightEdgeTopInset: parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset: parentToolInsets.rightEdgeCenterInset
         rightEdgeBottomInset: parentToolInsets.rightEdgeBottomInset
-        topEdgeLeftInset: dclinkPanel.visible
-            ? Math.max(parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
-            : parentToolInsets.topEdgeLeftInset
+        topEdgeLeftInset: dclinkNoseView.visible
+            ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkNoseView.y + dclinkNoseView.height)
+            : (dclinkPanel.visible
+                ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
+                : root.parentToolInsets.topEdgeLeftInset)
         topEdgeCenterInset: dclinkStatusStrip.visible
             ? Math.max(root.parentToolInsets.topEdgeCenterInset,
                        dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin)
@@ -106,6 +108,19 @@ Item {
         maximumHeight: Math.max(0, root.height - y)
         visible: SVState.synclairOverlay && root.flyView && root.flyView.customLayerMainWindowIsMap
             && root.mapControl && root.mapControl.visible && !SVState.cursorTrackingSessionActive
+        z: 2
+    }
+
+    SVDCLinkNoseView {
+        id: dclinkNoseView
+
+        x: dclinkPanel.x
+        y: dclinkPanel.y + dclinkPanel.height + SVUnits.margin
+        width: dclinkPanel.width
+        maximumHeight: Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeLeftInset - SVUnits.margin)
+        client: SVBackend.dclink
+        visible: dclinkPanel.visible && width >= ScreenTools.defaultFontPixelWidth * 18
+            && maximumHeight >= minimumHeight
         z: 2
     }
 

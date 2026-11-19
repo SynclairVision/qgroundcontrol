@@ -38,3 +38,34 @@ target has null range/coordinates, lost detections clear geometry, stale STATUS
 clears availability despite other traffic, and switching aircraft or disconnecting
 clears the snapshot. Confirm that the existing pilot menu and map interaction
 remain unchanged. No automated QGC test targets are part of this workflow.
+
+## Nose view
+
+With the SynclairVision overlay enabled and the map as the main view, the nose
+card appears below the existing DCLink menu. The map remains visible and
+interactive. Open or close the plot with the Nose view button. Opening the
+command menu takes priority: when remaining space is limited, the card keeps
+its angle readout and status in compact form; it hides if even that cannot fit.
+The video inset and bottom controls retain their reserved space.
+
+The plot shows aircraft-relative direction over ±60 degrees on each axis.
+Right is positive azimuth; up is positive elevation. The centre cross marks
+the aircraft nose. A dot marks a fresh target inside the displayed span.
+An arrow at the edge means outside the displayed span or behind the aircraft,
+with an explicit status label distinguishing those conditions. Numerical
+readouts retain the full angles. Direction alone does not establish range.
+
+Each axis is independent. With only azimuth, a vertical band shows the known
+left/right direction; with only elevation, a horizontal band shows the known
+up/down direction. The missing readout is a dash. The view never substitutes
+zero for missing data or places a rear target at the centre. Missing, expired
+or disconnected target data removes the target marker and shows its current
+availability state. GPS, position and range are not required.
+
+The card consumes only `targetView`; it does not select targets, send commands
+or change map/video modes. Existing flight controls remain in the DCLink menu.
+
+For manual visual review, cover centred and off-centre targets without range
+or GPS, each missing axis, behind/outside directions, loss of target data,
+light/dark themes, collapse/expand, menu expansion, and constrained viewport
+height. Verify that map gestures and the existing flight controls still work.
