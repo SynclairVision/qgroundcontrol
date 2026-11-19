@@ -1,11 +1,26 @@
 # Synclair: QGroundControl User Guide
 
-Synclair: QGroundControl adds SynclairVision camera and DigiView controls to QGroundControl. This guide covers the SynclairVision operator workflow. For aircraft setup, mission planning, and standard QGroundControl features, use the upstream QGroundControl documentation.
+SynclairQGC adds camera and DigiView controls to QGroundControl. This guide covers installation and operation.
+For aircraft setup and mission planning, use the [QGroundControl documentation](https://docs.qgroundcontrol.com/).
 
 ## 1. Getting started
 
+### Install
+
+Download a matching package from [SynclairVision releases](https://github.com/SynclairVision/qgroundcontrol/releases):
+
+- **Windows:** run the `SynclairQGC-installer-AMD64.exe` installer, then open **SynclairQGC** from the Start menu.
+- **Linux:** make the downloaded AppImage executable in its file properties, then open it.
+  In a terminal, use `chmod +x SynclairQGC-*.AppImage` and `./SynclairQGC-<architecture>.AppImage`,
+  replacing `<architecture>` with the downloaded filename's architecture.
+
+Use a SynclairVision build compatible with the DigiView version installed on your device.
+These packages target Linux and Windows; upstream QGroundControl packages do not include the DigiView controls.
+
+### Connect
+
 1. Start **SynclairQGC** and open **Fly** view.
-2. Make sure the SynclairVision overlay is visible.
+2. Make sure the SynclairVision overlay is visible; the default shortcut is **O** while in **Fly** view.
 3. Open **Settings > Network**.
 4. Select or create a DigiView network profile and choose **Connect**.
 5. Wait for video and control communication to become active.
@@ -30,7 +45,8 @@ The default profiles target DigiView hosts at `192.168.4.60` and `192.168.4.126`
 
 ### 2.2 Camera selection
 
-The active camera is the target for camera movement, zoom, overlays, and tracking commands.
+The selected camera receives movement, zoom, overlay and tracking commands.
+The **T/Y** tracking shortcuts use the view under the pointer instead.
 
 * Select a camera by clicking its view or by using a configured camera shortcut.
 * **Next camera** cycles forward through available views.
@@ -124,7 +140,8 @@ Use **Photo** to request a still image from DigiView. Currently unsupported.
 
 ## 4. Tracking
 
-Tracking commands operate on the active camera view.
+Pixel and GNSS shortcuts use the camera view under the pointer.
+Other tracking controls use the selected camera view.
 
 ### 4.1 Pixel tracking
 
@@ -134,9 +151,17 @@ Tracking commands operate on the active camera view.
 2. Start Pixel tracking.
 3. Select the target point in the video.
 
+To start immediately, move the pointer over the desired camera view and press **T** (the default Pixel shortcut).
+The view under the pointer is selected when tracking starts, even if another view or no view was selected.
+Starting Pixel tracking at a new point replaces the target without first clearing the displayed view.
+
 ### 4.2 GNSS tracking
 
 **GNSS** creates a tracking target from a selected position in the video when the required navigation data is available.
+
+Press **Y** (the default GNSS shortcut) to use the pointer position in any visible camera view and select that view.
+Tracking shortcuts require an active connection, visible video and unlocked controls.
+If the pointer is outside all camera views, no tracking request is sent and the selected view stays unchanged.
 
 ### 4.3 Manual tracking
 
@@ -144,13 +169,15 @@ Tracking commands operate on the active camera view.
 
 ### 4.4 Lock target
 
-**Lock target** locks the currently selected detection target when supported by the active tracking workflow.
+**Lock target** (**J**) locks the current target when supported by the active tracking workflow.
+Locking a target preserves the saved manual view and stabilization settings.
 
 ### 4.5 Stop tracking
 
-Use **Deselect tracking** to clear the current tracking operation.
+Use **Deselect tracking** (**I**) to stop tracking, including while the last view is held after target loss.
+DigiView restores the manual view without changing its saved stabilization mode.
 
-Tracking behavior is still being refined in this release. Validate tracking on the target DigiView and aircraft configuration before operational use.
+Check tracking with your DigiView and aircraft configuration before operational use.
 
 ---
 
@@ -337,7 +364,8 @@ AI enablement, scan-model selection, and some resolution changes are staged. Use
 
 ### Tracking behaves unexpectedly
 
-Tracking is still being refined in this release and must be validated against the target DigiView build and navigation source before operational use.
+Check that QGC and DigiView are compatible, video is visible and controls are unlocked.
+GNSS tracking also needs navigation data. Use **Deselect tracking** to leave a held or unwanted target.
 
 ### Control panel sizing
 
@@ -355,6 +383,7 @@ Some shortcuts can still respond outside their intended Fly-view context. Use th
 
 ## 8. Additional documentation
 
-* [Synclair: QGroundControl repository](https://github.com/SynclairVision/qgroundcontrol)
-* [Release notes](https://github.com/SynclairVision/qgroundcontrol/releases)
-* [QGroundControl user guide](https://docs.qgroundcontrol.com/)
+- [Synclair: QGroundControl repository](https://github.com/SynclairVision/qgroundcontrol)
+- [Release notes](https://github.com/SynclairVision/qgroundcontrol/releases)
+- [QGroundControl user guide](https://docs.qgroundcontrol.com/)
+- [WebMenu and device configuration](https://github.com/SynclairVision/Maintenance/blob/dev-0.7.1-cleanup/docs/external/webmenu.md)
