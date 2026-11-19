@@ -276,6 +276,8 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         _autopilotConnection = status.autopilot_connection;
         _commandState = status.command_state;
         _targetStatus = status.target_status;
+        _navigationType = status.navigation_type;
+        _navigationStatus = status.navigation_status;
         _activeCommand = *active;
         if (_awaitingReconciliation) {
             _awaitingReconciliation = false;
@@ -372,13 +374,18 @@ QString DCLinkManager::_commandLabel(const QString& command) const
     return _catalogLabels.value(command, tr("Other command"));
 }
 
+bool DCLinkManager::connected() const
+{
+    return _connected && _lastStatus.isValid() && _lastStatus.elapsed() <= STATUS_TIMEOUT_MS;
+}
+
 QString DCLinkManager::statusText() const
 {
     if (_digiview && _digiview->connection() && _digiview->connection()->usingLegacyTcpControl()) {
         return tr("DCLink requires MAVLink UDP.");
     }
     if (!_transportReady()) return tr("Connect the DigiView network profile.");
-    return _connected ? tr("DCLink online") : tr("Waiting for DCLink");
+    return connected() ? tr("DCLink online") : tr("Waiting for DCLink");
 }
 
 QString DCLinkManager::vehicleText() const
@@ -390,7 +397,8 @@ QString DCLinkManager::vehicleText() const
 
 QString DCLinkManager::commandText() const
 {
-    if (!_connected) return tr("Current command unavailable");
+    if (!connected())
+        return tr("Current command unavailable");
     if (_activeCommand.isEmpty() || _activeCommand == QStringLiteral("idle")
         || _activeCommand == QStringLiteral("none")) {
         return tr("Idle");
@@ -405,7 +413,8 @@ QString DCLinkManager::commandText() const
 
 QString DCLinkManager::targetText() const
 {
-    if (!_connected) return tr("Target unavailable");
+    if (!connected())
+        return tr("Target unavailable");
     switch (_targetStatus) {
         case DCLINK_TARGET_STATUS_SEEN:
             return tr("Target seen");
@@ -418,6 +427,58 @@ QString DCLinkManager::targetText() const
         default:
             return tr("No target");
     }
+}
+
+QString DCLinkManager::navigationText() const
+{
+    if (!connected()) {
+        return tr("Navigation unavailable");
+    }
+
+    QString source;
+    switch (_navigationType) {
+        case DCLINK_NAVIGATION_TYPE_NONE:
+            source = tr("None");
+            break;
+        case DCLINK_NAVIGATION_TYPE_GPS:
+            source = tr("GPS");
+            break;
+        case DCLINK_NAVIGATION_TYPE_MYGGNAV:
+            source = tr("Myggnav");
+            break;
+        case DCLINK_NAVIGATION_TYPE_STELLAR:
+            source = tr("Stellar");
+            break;
+        case DCLINK_NAVIGATION_TYPE_CUSTOM:
+            source = tr("Custom");
+            break;
+        default:
+            source = tr("Unknown");
+            break;
+    }
+
+    QString health;
+    switch (_navigationStatus) {
+        case DCLINK_NAVIGATION_STATUS_READY:
+            health = tr("Ready");
+            break;
+        case DCLINK_NAVIGATION_STATUS_ACTIVE:
+            health = tr("Active");
+            break;
+        case DCLINK_NAVIGATION_STATUS_DEGRADED:
+            health = tr("Degraded");
+            break;
+        case DCLINK_NAVIGATION_STATUS_LOST:
+            health = tr("Lost");
+            break;
+        case DCLINK_NAVIGATION_STATUS_ERROR:
+            health = tr("Error");
+            break;
+        default:
+            health = tr("Unknown");
+            break;
+    }
+    return tr("Navigation: %1 · %2").arg(source, health);
 }
 
 QString DCLinkManager::availabilityReason() const

@@ -16,19 +16,11 @@ Item {
     readonly property var pipView: flyView ? flyView.customLayerPipView : null
     readonly property var widgetLayer: flyView ? flyView.customLayerWidgetLayer : null
     readonly property var toolbar: flyView ? flyView.customLayerToolbar : null
+    readonly property bool statusStripBelowRightTools: width - parentToolInsets.leftEdgeTopInset
+        - parentToolInsets.rightEdgeTopInset - SVUnits.margin * 2 < ScreenTools.defaultFontPixelWidth * 32
     readonly property bool welcomePromptAcknowledged: {
         const shownIds = QGroundControl.settingsManager.appSettings.firstRunPromptIdsShown.rawValue
         return shownIds.includes(QGroundControl.corePlugin.svInitialWelcomePromptId)
-    }
-
-    function showVideoFullScreen() {
-        if (!videoControl || !mapControl || !pipView) {
-            return
-        }
-
-        videoControl.pipState.state = videoControl.pipState.fullState
-        mapControl.pipState.state = mapControl.pipState.pipState
-        QGroundControl.saveBoolGlobalSetting("MainFlyWindowIsMap", false)
     }
 
     QGCToolInsets {
@@ -45,7 +37,10 @@ Item {
         topEdgeLeftInset: dclinkPanel.visible
             ? Math.max(parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
             : parentToolInsets.topEdgeLeftInset
-        topEdgeCenterInset: parentToolInsets.topEdgeCenterInset
+        topEdgeCenterInset: dclinkStatusStrip.visible
+            ? Math.max(root.parentToolInsets.topEdgeCenterInset,
+                       dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin)
+            : root.parentToolInsets.topEdgeCenterInset
         topEdgeRightInset: parentToolInsets.topEdgeRightInset
         bottomEdgeLeftInset: parentToolInsets.bottomEdgeLeftInset
         bottomEdgeCenterInset: parentToolInsets.bottomEdgeCenterInset
@@ -80,18 +75,35 @@ Item {
         pipViewWidth: pipView && pipView._isExpanded ? pipView.width : ScreenTools.defaultFontPixelHeight * 2
         leftToolStripBottom: widgetLayer ? widgetLayer.customLayerToolStrip.topEdgeLeftInset : 0
         previewMode: videoControl && videoControl.pipState.state === videoControl.pipState.pipState
+        statusStripInset: dclinkStatusStrip.visible
+            ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin : 0
         visible: SVState.synclairOverlay
             && videoControl
             && videoControl.pipState.state !== videoControl.pipState.windowState
         z: 1
     }
 
+    SVDCLinkStatusStrip {
+        id: dclinkStatusStrip
+
+        x: root.parentToolInsets.leftEdgeTopInset + SVUnits.margin
+        y: root.statusStripBelowRightTools
+            ? Math.max(root.parentToolInsets.topEdgeCenterInset, root.parentToolInsets.topEdgeRightInset)
+            : root.parentToolInsets.topEdgeCenterInset
+        width: Math.max(0, root.width - x - SVUnits.margin
+                        - (root.statusStripBelowRightTools ? 0 : root.parentToolInsets.rightEdgeTopInset))
+        client: SVBackend.dclink
+        visible: SVState.synclairOverlay && !SVState.cursorTrackingSessionActive && width > 0
+        z: 2
+    }
+
     SVDCLinkPanel {
         id: dclinkPanel
 
         x: root.parentToolInsets.leftEdgeTopInset + SVUnits.margin
+        y: dclinkStatusStrip.visible ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin : 0
         width: Math.min(ScreenTools.defaultFontPixelHeight * 15, Math.max(0, root.width - x))
-        maximumHeight: root.height
+        maximumHeight: Math.max(0, root.height - y)
         visible: SVState.synclairOverlay && root.flyView && root.flyView.customLayerMainWindowIsMap
             && root.mapControl && root.mapControl.visible && !SVState.cursorTrackingSessionActive
         z: 2
@@ -110,7 +122,6 @@ Item {
 
         function onSynclairOverlayChanged() {
             if (SVState.synclairOverlay && !root.welcomePromptAcknowledged) {
-                root.showVideoFullScreen()
                 welcomePromptLoader.active = true
             }
         }

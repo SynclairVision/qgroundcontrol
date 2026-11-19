@@ -28,6 +28,7 @@ class DCLinkManager final : public QObject
     Q_PROPERTY(QString vehicleText READ vehicleText NOTIFY stateChanged)
     Q_PROPERTY(QString commandText READ commandText NOTIFY stateChanged)
     Q_PROPERTY(QString targetText READ targetText NOTIFY stateChanged)
+    Q_PROPERTY(QString navigationText READ navigationText NOTIFY stateChanged)
     Q_PROPERTY(QString feedback READ feedback NOTIFY stateChanged)
     Q_PROPERTY(QString availabilityReason READ availabilityReason NOTIFY stateChanged)
     Q_PROPERTY(QVariantList actions READ actions NOTIFY stateChanged)
@@ -36,11 +37,12 @@ public:
     explicit DCLinkManager(DigiviewManager* digiview, QObject* parent = nullptr);
     ~DCLinkManager() override;
 
-    bool connected() const { return _connected; }
+    bool connected() const;
     QString statusText() const;
     QString vehicleText() const;
     QString commandText() const;
     QString targetText() const;
+    QString navigationText() const;
     QString feedback() const { return _feedback; }
     QString availabilityReason() const;
     QVariantList actions() const;
@@ -101,6 +103,8 @@ private:
     int _autopilotConnection = 0;
     int _commandState = 0;
     int _targetStatus = 0;
+    int _navigationType = 0;
+    int _navigationStatus = 0;
     VehicleKind _vehicleKind = VehicleKind::Unknown;
     QString _vehicleReason;
     QString _activeCommand;

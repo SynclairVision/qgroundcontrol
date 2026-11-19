@@ -95,6 +95,16 @@ Per-view overlays are available for the active camera.
 
 ### 2.6 DCLink pilot commands
 
+With the SynclairVision overlay enabled, a compact status strip stays visible
+above the command panel on the map and over the main video view. It shows the
+DCLink connection, current command, target state, and navigation source and health.
+It wraps to additional rows on smaller displays. Status remains visible when
+the command panel is collapsed; the strip itself does not issue commands.
+Missing or stale DCLink status shows unavailable values. Navigation health
+reports DCLink's status and does not indicate who controls the aircraft.
+Enabling the overlay preserves the current map/video layout, including when
+the welcome dialog is shown for the first time.
+
 With the SynclairVision overlay enabled, switch to the map and open **DCLink**.
 Opening or closing this menu only changes its visibility. Select an action explicitly to send a command.
 

@@ -26,6 +26,7 @@ Item {
     property var parentToolInsets
     property real leftToolStripBottom: 0
     property bool previewMode: false
+    property real statusStripInset: 0
 
     property int _widgetMargin: 0
     property int _toolBarHeight: 0
@@ -350,7 +351,9 @@ Item {
         anchors.rightMargin: _widgetMargin + ((adjustHud && (detectionPosition === "ColumnRight" || detectionPosition === "Single")) ? detectionOverlay.width : 0)
         anchors.bottomMargin: _widgetMargin + ((adjustHud && detectionPosition === "RowBottom") ? detectionOverlay.height : 0)
         //anchors.topMargin: _widgetMargin + (adjustHud ? (Math.max(Math.max(toolbarInset, heightOffset), adjustHud && detectionPosition === "RowTop" ? detectionOverlay.height : 0)
-        anchors.topMargin: _widgetMargin + (adjustHud ? (Math.max(Math.max(0, toolbarInset - heightOffset), adjustHud && detectionPosition === "RowTop" ? detectionOverlay.height : 0)) : toolbarInset)
+        anchors.topMargin: _widgetMargin + root.statusStripInset
+            + (adjustHud ? (Math.max(Math.max(0, toolbarInset - heightOffset),
+                                    detectionPosition === "RowTop" ? detectionOverlay.height : 0)) : toolbarInset)
         offsetX: adjustHud ? (anchors.rightMargin - _widgetMargin + Math.floor(widthOffset)) : 0
         //offsetY: SVUnits.objectWidth + toolbarInset + (adjustHud ? Math.max(Math.max(toolbarInset, heightOffset), detectionPosition === "RowTop" ? detectionOverlay.height : 0)
         offsetY: SVUnits.objectWidth + (adjustHud ? (Math.max(Math.max(toolbarInset, heightOffset) - toolbarInset, detectionPosition === "RowTop")) : 0)
