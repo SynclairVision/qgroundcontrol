@@ -16,8 +16,8 @@
 
 namespace {
 
-constexpr quint8 COPILOT_SYSTEM_ID = 252;
-constexpr quint8 COPILOT_COMPONENT_ID = 67;
+constexpr quint8 DCLINK_SYSTEM_ID = 252;
+constexpr quint8 DCLINK_COMPONENT_ID = 67;
 constexpr int STATUS_TIMEOUT_MS = 3000;
 constexpr int VEHICLE_TIMEOUT_MS = 3500;
 constexpr int MAX_CATALOG_ITEMS = 256;
@@ -75,7 +75,7 @@ bool DCLinkManager::_transportReady() const
 
 std::optional<quint16> DCLinkManager::_nextRequestId()
 {
-    // Never reuse an identity, including after reconnects: Copilot retains mutation results until reboot.
+    // Never reuse an identity, including after reconnects: DCLink retains mutation results until reboot.
     if (_issuedIds >= REQUEST_ID_COUNT) {
         _feedback = tr("The DCLink session limit was reached. Restart QGC to reconnect.");
         return std::nullopt;
@@ -89,11 +89,10 @@ bool DCLinkManager::_sendStatus(quint16 requestId)
     if (!_transportReady()) {
         return false;
     }
-    mavlink_copilot_status_t payload{};
+    mavlink_dclink_status_t payload{};
     payload.request_id = requestId;
     mavlink_message_t message{};
-    mavlink_msg_copilot_status_encode(
-        _digiview->senderSystemId(), _digiview->senderComponentId(), &message, &payload);
+    mavlink_msg_dclink_status_encode(_digiview->senderSystemId(), _digiview->senderComponentId(), &message, &payload);
     return _digiview->connection()->sendMessage(message);
 }
 
@@ -102,7 +101,7 @@ bool DCLinkManager::_sendCommand(quint16 requestId, quint8 action, int item, con
     if (!_transportReady()) {
         return false;
     }
-    mavlink_copilot_command_t payload{};
+    mavlink_dclink_command_t payload{};
     const auto name = command.toUtf8();
     if (name.size() >= static_cast<qsizetype>(sizeof(payload.name))) {
         return false;
@@ -112,8 +111,7 @@ bool DCLinkManager::_sendCommand(quint16 requestId, quint8 action, int item, con
     payload.id = static_cast<quint16>(item);
     std::copy(name.cbegin(), name.cend(), std::begin(payload.name));
     mavlink_message_t message{};
-    mavlink_msg_copilot_command_encode(
-        _digiview->senderSystemId(), _digiview->senderComponentId(), &message, &payload);
+    mavlink_msg_dclink_command_encode(_digiview->senderSystemId(), _digiview->senderComponentId(), &message, &payload);
     return _digiview->connection()->sendMessage(message);
 }
 
@@ -223,8 +221,8 @@ void DCLinkManager::_tick()
     }
 
     if (_catalogRequest && _catalogRequest->deadline.hasExpired()) {
-        if (_catalogRequest->attempts >= 3
-            || !_sendCommand(_catalogRequest->id, COPILOT_ACTION_GET, _catalogRequest->item)) {
+        if (_catalogRequest->attempts >= 3 ||
+            !_sendCommand(_catalogRequest->id, DCLINK_ACTION_GET, _catalogRequest->item)) {
             _catalogFailed(tr("DCLink command list could not be read."));
         } else {
             ++_catalogRequest->attempts;
@@ -233,7 +231,7 @@ void DCLinkManager::_tick()
     }
     if (_connected && !_catalogReady && !_catalogRequest && _catalogRetry.hasExpired()) {
         if (const auto id = _nextRequestId()) {
-            if (_sendCommand(*id, COPILOT_ACTION_GET, _catalogNextItem)) {
+            if (_sendCommand(*id, DCLINK_ACTION_GET, _catalogNextItem)) {
                 _catalogRequest = Request{.id = *id, .item = _catalogNextItem};
             } else {
                 _catalogFailed(tr("DCLink command list could not be requested."));
@@ -260,17 +258,16 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         }
         return;
     }
-    if (message.sysid != COPILOT_SYSTEM_ID || message.compid != COPILOT_COMPONENT_ID) {
+    if (message.sysid != DCLINK_SYSTEM_ID || message.compid != DCLINK_COMPONENT_ID) {
         return;
     }
-    if (message.msgid == MAVLINK_MSG_ID_COPILOT_STATUS) {
-        mavlink_copilot_status_t status{};
-        mavlink_msg_copilot_status_decode(&message, &status);
+    if (message.msgid == MAVLINK_MSG_ID_DCLINK_STATUS) {
+        mavlink_dclink_status_t status{};
+        mavlink_msg_dclink_status_decode(&message, &status);
         const auto active = wireText(status.active_command);
-        if (!_statusRequest || status.request_id != _statusRequest->id || !active
-            || status.autopilot_connection > COPILOT_AUTOPILOT_CONNECTION_ERROR
-            || status.command_state > COPILOT_COMMAND_STATE_ERROR
-            || status.target_status > COPILOT_TARGET_STATUS_LOST) {
+        if (!_statusRequest || status.request_id != _statusRequest->id || !active ||
+            status.autopilot_connection > DCLINK_AUTOPILOT_CONNECTION_ERROR ||
+            status.command_state > DCLINK_COMMAND_STATE_ERROR || status.target_status > DCLINK_TARGET_STATUS_LOST) {
             return;
         }
         _statusRequest.reset();
@@ -287,25 +284,25 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         emit stateChanged();
         return;
     }
-    if (message.msgid != MAVLINK_MSG_ID_COPILOT_COMMAND) {
+    if (message.msgid != MAVLINK_MSG_ID_DCLINK_COMMAND) {
         return;
     }
-    mavlink_copilot_command_t response{};
-    mavlink_msg_copilot_command_decode(&message, &response);
+    mavlink_dclink_command_t response{};
+    mavlink_msg_dclink_command_decode(&message, &response);
     const auto name = wireText(response.name);
     if (!name) {
         return;
     }
 
-    if (_mutation && response.request_id == _mutation->id
-        && (*name == _mutation->command || (name->isEmpty() && response.action == COPILOT_ACTION_ERROR))
-        && (response.action == COPILOT_ACTION_ACK || response.action == COPILOT_ACTION_ERROR)) {
-        if (response.action == COPILOT_ACTION_ACK && response.result == COPILOT_RESULT_OK) {
+    if (_mutation && response.request_id == _mutation->id &&
+        (*name == _mutation->command || (name->isEmpty() && response.action == DCLINK_ACTION_ERROR)) &&
+        (response.action == DCLINK_ACTION_ACK || response.action == DCLINK_ACTION_ERROR)) {
+        if (response.action == DCLINK_ACTION_ACK && response.result == DCLINK_RESULT_OK) {
             _feedback = tr("%1 request accepted. Check the reported command state.")
                 .arg(_commandLabel(_mutation->command));
-        } else if (response.result == COPILOT_RESULT_BUSY) {
+        } else if (response.result == DCLINK_RESULT_BUSY) {
             _feedback = tr("DCLink is busy. Check the current command before trying again.");
-        } else if (response.result == COPILOT_RESULT_NOT_FOUND) {
+        } else if (response.result == DCLINK_RESULT_NOT_FOUND) {
             _feedback = tr("This command is unavailable on DCLink.");
             _resetCatalog();
         } else {
@@ -319,10 +316,10 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         return;
     }
     const int requestedItem = _catalogRequest->item;
-    if (response.result != COPILOT_RESULT_OK || response.total > MAX_CATALOG_ITEMS
-        || (requestedItem == 0 && response.action != COPILOT_ACTION_ACK)
-        || (requestedItem != 0 && (response.action != COPILOT_ACTION_ITEM || response.id != requestedItem
-            || response.total != _catalogCount || name->isEmpty() || _catalogNames.contains(*name)))) {
+    if (response.result != DCLINK_RESULT_OK || response.total > MAX_CATALOG_ITEMS ||
+        (requestedItem == 0 && response.action != DCLINK_ACTION_ACK) ||
+        (requestedItem != 0 && (response.action != DCLINK_ACTION_ITEM || response.id != requestedItem ||
+                                response.total != _catalogCount || name->isEmpty() || _catalogNames.contains(*name)))) {
         _catalogFailed(tr("DCLink command list changed or returned an invalid response."));
         emit stateChanged();
         return;
@@ -399,20 +396,27 @@ QString DCLinkManager::commandText() const
         return tr("Idle");
     }
     const auto label = _commandLabel(_activeCommand);
-    if (_commandState == COPILOT_COMMAND_STATE_STOPPING) return tr("%1 · Stopping").arg(label);
-    if (_commandState == COPILOT_COMMAND_STATE_ERROR) return tr("%1 · Error").arg(label);
-    return _commandState == COPILOT_COMMAND_STATE_RUNNING ? tr("%1 · Running").arg(label) : label;
+    if (_commandState == DCLINK_COMMAND_STATE_STOPPING)
+        return tr("%1 · Stopping").arg(label);
+    if (_commandState == DCLINK_COMMAND_STATE_ERROR)
+        return tr("%1 · Error").arg(label);
+    return _commandState == DCLINK_COMMAND_STATE_RUNNING ? tr("%1 · Running").arg(label) : label;
 }
 
 QString DCLinkManager::targetText() const
 {
     if (!_connected) return tr("Target unavailable");
     switch (_targetStatus) {
-    case COPILOT_TARGET_STATUS_SEEN: return tr("Target seen");
-    case COPILOT_TARGET_STATUS_STABLE: return tr("Target stable");
-    case COPILOT_TARGET_STATUS_LOCKED: return tr("Target locked");
-    case COPILOT_TARGET_STATUS_LOST: return tr("Target lost");
-    default: return tr("No target");
+        case DCLINK_TARGET_STATUS_SEEN:
+            return tr("Target seen");
+        case DCLINK_TARGET_STATUS_STABLE:
+            return tr("Target stable");
+        case DCLINK_TARGET_STATUS_LOCKED:
+            return tr("Target locked");
+        case DCLINK_TARGET_STATUS_LOST:
+            return tr("Target lost");
+        default:
+            return tr("No target");
     }
 }
 
@@ -440,10 +444,11 @@ QString DCLinkManager::_actionReason(const QString& command) const
         return tr("Unavailable on the connected DCLink.");
     }
     if (command != QStringLiteral("cancel")) {
-        if (_autopilotConnection != COPILOT_AUTOPILOT_CONNECTION_CONNECTED) {
+        if (_autopilotConnection != DCLINK_AUTOPILOT_CONNECTION_CONNECTED) {
             return tr("DCLink is not connected to the autopilot.");
         }
-        if (_commandState == COPILOT_COMMAND_STATE_STOPPING) return tr("DCLink is stopping the current command.");
+        if (_commandState == DCLINK_COMMAND_STATE_STOPPING)
+            return tr("DCLink is stopping the current command.");
     }
     return {};
 }
@@ -476,7 +481,7 @@ bool DCLinkManager::startAction(const QString& command)
         return false;
     }
     // Mutations are sent exactly once. Only read requests are eligible for retries.
-    if (!_sendCommand(*id, COPILOT_ACTION_START, 0, command)) {
+    if (!_sendCommand(*id, DCLINK_ACTION_START, 0, command)) {
         _feedback = tr("The command could not be sent.");
         emit stateChanged();
         return false;

@@ -102,25 +102,31 @@ Opening or closing this menu only changes its visibility. Select an action expli
 | --- | --- | --- |
 | Cancel | Request safe cancellation | Request safe cancellation |
 | Hold | Hold | Loiter |
-| Mission | Run Copilot's stored route | Unavailable |
+| Mission | Run DCLink's stored route | Unavailable |
 | Follow Target / Intercept | Follow Target | Intercept |
 | Target Loiter | Target Loiter | Target Loiter |
 
-Follow, Intercept and Target Loiter use the target currently observed by Copilot.
-Mission uses Copilot's stored route and its onboard target-follow handoff behavior.
+Follow, Intercept and Target Loiter use the target currently observed by DCLink.
+Mission uses DCLink's stored route and its onboard target-follow handoff behavior.
 The menu does not select map coordinates or change command parameters.
 
 DCLink shares the selected DigiView profile's MAVLink UDP connection and works without video decoding.
-The Maintenance router exposes this connection on port **14570**; Copilot uses its onboard endpoint on port **14880**.
+The Maintenance router exposes this connection on port **14570**; DCLink uses its onboard endpoint on port **14880**.
 The legacy TCP control fallback does not carry DCLink commands.
 Aircraft telemetry must arrive on the shared connection. If QGC has an active aircraft, its system ID must match.
-Commands are unavailable when multiple aircraft appear on the same bus, since the Copilot messages have no destination.
+Commands are unavailable when multiple aircraft appear on the same bus, since the DCLink messages have no destination.
 Use one operator client on this bus; do not run a second command client alongside QGC.
 
 The menu shows the aircraft type, current command, target status and request feedback.
-Only commands exposed to the onboard Pilot role are available. An accepted request is not confirmation of flight completion.
+Only commands returned by DCLink and included in this menu are available.
+An accepted request is not confirmation of flight completion.
 Requests are sent once. If an acknowledgement is missing, QGC reports an unknown outcome and refreshes current status;
 it never resends a command after a timeout or reconnect. Check the reported state before selecting another action.
+
+QGC and DCLink must use matching `DCLINK_STATUS`, `DCLINK_COMMAND` and
+`DCLINK_PARAMETER` definitions from the same pinned message-definitions revision.
+Update both applications together. The shared wire contract is documented in
+`message-definitions/dclink-mavlink.md` in the source checkout.
 
 ---
 

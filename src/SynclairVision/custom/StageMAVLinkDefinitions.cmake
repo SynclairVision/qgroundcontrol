@@ -7,7 +7,7 @@ file(GLOB _standard_definitions "${DEFINITIONS_SOURCE}/mavlink/message_definitio
 file(COPY ${_standard_definitions} DESTINATION "${XML_OUTPUT}")
 file(READ "${XML_OUTPUT}/all.xml" _all_xml)
 
-foreach(_dialect IN ITEMS sv_mavlink_dialect copilot_mavlink_dialect)
+foreach(_dialect IN ITEMS sv_mavlink_dialect dclink_mavlink_dialect)
     configure_file("${DEFINITIONS_SOURCE}/${_dialect}.xml" "${XML_OUTPUT}/${_dialect}.xml" COPYONLY)
     if(NOT _all_xml MATCHES "<include>[ \t\r\n]*${_dialect}\\.xml[ \t\r\n]*</include>")
         string(FIND "${_all_xml}" "</include>" _last_include REVERSE)

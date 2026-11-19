@@ -8,7 +8,7 @@ set(_synclair_binary "${CMAKE_BINARY_DIR}/SynclairVision/message-definitions")
 foreach(_required IN ITEMS
     "${_synclair_xml_source}/all.xml"
     "${_synclair_definitions}/sv_mavlink_dialect.xml"
-    "${_synclair_definitions}/copilot_mavlink_dialect.xml"
+    "${_synclair_definitions}/dclink_mavlink_dialect.xml"
 )
     if(NOT EXISTS "${_required}")
         message(FATAL_ERROR
@@ -42,9 +42,9 @@ add_custom_command(
     DEPENDS
         ${_synclair_xml_files}
         "${_synclair_definitions}/sv_mavlink_dialect.xml"
-        "${_synclair_definitions}/copilot_mavlink_dialect.xml"
+        "${_synclair_definitions}/dclink_mavlink_dialect.xml"
         "${_synclair_stage_script}"
-    COMMENT "Generating standard, DigiView and Copilot MAVLink headers"
+    COMMENT "Generating standard, DigiView and DCLink MAVLink headers"
     VERBATIM
 )
 
