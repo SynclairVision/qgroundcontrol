@@ -1,4 +1,4 @@
 [submodule "message-definitions"]
 	path = message-definitions
 	url = git@github.com:SynclairVision/message-definitions.git
-	branch = feat/dclink-protocol-alignment
+	branch = feat/dclink-shared-target-data

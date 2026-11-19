@@ -1,7 +1,5 @@
 #pragma once
 
-#include <optional>
-
 #include <QtCore/QDeadlineTimer>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QHash>
@@ -11,7 +9,10 @@
 #include <QtCore/QStringList>
 #include <QtCore/QTimer>
 #include <QtCore/QVariantList>
+#include <QtCore/QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
+
+#include <optional>
 
 #include "MAVLinkMessageType.h"
 
@@ -32,6 +33,7 @@ class DCLinkManager final : public QObject
     Q_PROPERTY(QString feedback READ feedback NOTIFY stateChanged)
     Q_PROPERTY(QString availabilityReason READ availabilityReason NOTIFY stateChanged)
     Q_PROPERTY(QVariantList actions READ actions NOTIFY stateChanged)
+    Q_PROPERTY(QVariantMap targetView READ targetView NOTIFY stateChanged)
 
 public:
     explicit DCLinkManager(DigiviewManager* digiview, QObject* parent = nullptr);
@@ -46,6 +48,7 @@ public:
     QString feedback() const { return _feedback; }
     QString availabilityReason() const;
     QVariantList actions() const;
+    QVariantMap targetView() const;
 
     Q_INVOKABLE bool startAction(const QString& command);
     void setSelectedVehicleId(int systemId);
@@ -73,6 +76,9 @@ private:
     std::optional<quint16> _nextRequestId();
     bool _sendStatus(quint16 requestId);
     bool _sendCommand(quint16 requestId, quint8 action, int item, const QString& command = {});
+    void _pollTarget();
+    void _clearTarget();
+    void _receiveTarget(const mavlink_message_t& message);
     void _tick();
     void _receiveMessage(const mavlink_message_t& message);
     void _resetSession();
@@ -89,6 +95,17 @@ private:
     QTimer _timer;
     QElapsedTimer _lastStatus;
     QElapsedTimer _lastPoll;
+    QElapsedTimer _lastTarget;
+    QElapsedTimer _targetQueryAge;
+    QVariantMap _targetData;
+    quint64 _targetNextId = 1;
+    quint64 _targetBootId = 0;
+    quint32 _targetSequence = 0;
+    quint32 _targetRequestId = 0;
+    quint32 _statusFlags = 0;
+    quint32 _targetFlags = 0;
+    int _targetRemainingMs = 0;
+    int _targetVehicleId = 0;
     QDeadlineTimer _catalogRetry{0};
     QHash<int, Observation> _observations;
     QSet<QString> _catalogNames;

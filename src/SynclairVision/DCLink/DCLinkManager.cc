@@ -1,15 +1,20 @@
 #include "DCLinkManager.h"
 
-#include <algorithm>
-#include <cstddef>
-#include <iterator>
-
 #include <QtCore/QByteArrayView>
 #include <QtCore/QRandomGenerator>
 #include <QtCore/QStringConverter>
 #include <QtCore/QVariantMap>
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <iterator>
+#include <limits>
+
+// clang-format off: load the full bus before DigiView's narrower dialect header.
 #include "MAVLinkLib.h"
+// clang-format on
+
 #include "DigiviewConnection.h"
 #include "DigiviewManager.h"
 #include "QGCMAVLink.h"
@@ -32,12 +37,13 @@ std::optional<QString> wireText(const char (&value)[N])
     return decoder.hasError() ? std::nullopt : std::optional<QString>(text);
 }
 
-} // namespace
+}  // namespace
 
 DCLinkManager::DCLinkManager(DigiviewManager* digiview, QObject* parent)
-    : QObject(parent)
-    , _digiview(digiview)
-    , _nextId(QRandomGenerator::global()->bounded(REQUEST_ID_COUNT))
+    : QObject(parent),
+      _digiview(digiview),
+      _targetNextId(QRandomGenerator::global()->bounded(1u, 0x80000000u)),
+      _nextId(QRandomGenerator::global()->bounded(REQUEST_ID_COUNT))
 {
     if (!_digiview || !_digiview->connection()) {
         return;
@@ -142,6 +148,8 @@ void DCLinkManager::_resetSession()
 {
     _markOutcomeUnknown();
     _connected = false;
+    _statusFlags = 0;
+    _clearTarget();
     _lastStatus.invalidate();
     _lastPoll.invalidate();
     _statusRequest.reset();
@@ -196,6 +204,7 @@ void DCLinkManager::_updateVehicle()
 void DCLinkManager::_tick()
 {
     _updateVehicle();
+    _pollTarget();
     if (!_transportReady()) {
         emit stateChanged();
         return;
@@ -266,6 +275,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         mavlink_msg_dclink_status_decode(&message, &status);
         const auto active = wireText(status.active_command);
         if (!_statusRequest || status.request_id != _statusRequest->id || !active ||
+            (status.flags & DCLINK_STATUS_FLAGS_ERROR) ||
             status.autopilot_connection > DCLINK_AUTOPILOT_CONNECTION_ERROR ||
             status.command_state > DCLINK_COMMAND_STATE_ERROR || status.target_status > DCLINK_TARGET_STATUS_LOST) {
             return;
@@ -273,6 +283,10 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         _statusRequest.reset();
         _lastStatus.start();
         _connected = true;
+        _statusFlags = status.flags;
+        if (!(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)) {
+            _clearTarget();
+        }
         _autopilotConnection = status.autopilot_connection;
         _commandState = status.command_state;
         _targetStatus = status.target_status;
@@ -284,6 +298,10 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
             _feedback = tr("Current state refreshed. The previous command acknowledgement was not received.");
         }
         emit stateChanged();
+        return;
+    }
+    if (message.msgid == MAVLINK_MSG_ID_DCLINK_TARGET_VIEW) {
+        _receiveTarget(message);
         return;
     }
     if (message.msgid != MAVLINK_MSG_ID_DCLINK_COMMAND) {
@@ -551,4 +569,153 @@ bool DCLinkManager::startAction(const QString& command)
     _feedback = tr("Sending %1…").arg(_commandLabel(command));
     emit stateChanged();
     return true;
+}
+
+void DCLinkManager::_clearTarget()
+{
+    _lastTarget.invalidate();
+    _targetQueryAge.invalidate();
+    _targetRequestId = 0;
+    _targetFlags = 0;
+    _targetRemainingMs = 0;
+    _targetData.clear();
+}
+
+void DCLinkManager::_pollTarget()
+{
+    if (!_transportReady() || !connected() || !_vehicleReason.isEmpty() ||
+        !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)) {
+        _clearTarget();
+        return;
+    }
+    if (_targetVehicleId != 0 && _targetVehicleId != _observations.constBegin().key()) {
+        _clearTarget();
+    }
+    if (_targetRequestId != 0) {
+        if (_targetQueryAge.elapsed() < 1000) {
+            return;
+        }
+        _clearTarget();
+    }
+    // A separate 32-bit read identity avoids exhausting the command identity pool.
+    if (_targetNextId > std::numeric_limits<quint32>::max()) {
+        _clearTarget();
+        return;
+    }
+    mavlink_dclink_target_view_t payload{};
+    payload.request_id = static_cast<quint32>(_targetNextId++);
+    mavlink_message_t message{};
+    mavlink_msg_dclink_target_view_encode(_digiview->senderSystemId(), _digiview->senderComponentId(), &message,
+                                          &payload);
+    if (_digiview->connection()->sendMessage(message)) {
+        _targetRequestId = payload.request_id;
+        _targetQueryAge.start();
+    }
+}
+
+void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
+{
+    mavlink_dclink_target_view_t target{};
+    mavlink_msg_dclink_target_view_decode(&message, &target);
+    if (_targetRequestId == 0 || target.request_id != _targetRequestId) {
+        return;
+    }
+    _updateVehicle();
+    const auto id = wireText(target.target_id);
+    const auto source = wireText(target.target_source);
+    const auto valid = [&target](quint32 flag, double value, double minimum, double maximum) {
+        return !(target.flags & flag) || (std::isfinite(value) && value >= minimum && value <= maximum);
+    };
+    if (!connected() || !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW) || !_vehicleReason.isEmpty() ||
+        target.schema_version != 1 || target.boot_id == 0 || !id || !source ||
+        target.vehicle_system_id != _observations.constBegin().key() ||
+        target.vehicle_component_id != MAV_COMP_ID_AUTOPILOT1 || target.control_owner > DCLINK_CONTROL_OWNER_DCLINK ||
+        target.valid_for_ms > 3000 || (target.flags & ~quint32(511)) ||
+        ((target.flags & ~quint32(DCLINK_TARGET_VIEW_FLAGS_PRESENT)) &&
+         !(target.flags & DCLINK_TARGET_VIEW_FLAGS_PRESENT)) ||
+        ((target.flags & DCLINK_TARGET_VIEW_FLAGS_BEHIND) && !(target.flags & DCLINK_TARGET_VIEW_FLAGS_AZIMUTH)) ||
+        ((target.flags & DCLINK_TARGET_VIEW_FLAGS_DRIVING) && target.control_owner != DCLINK_CONTROL_OWNER_DCLINK) ||
+        ((target.flags & DCLINK_TARGET_VIEW_FLAGS_RANGE) &&
+         target.range_source != DCLINK_RANGE_SOURCE_RUNTIME_ESTIMATE) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_AZIMUTH, target.azimuth_deg, -180, 180) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_ELEVATION, target.elevation_deg, -90, 90) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_RANGE, target.horizontal_range_m, 0, 1e9) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_GLOBAL_POSITION, target.latitude_deg, -90, 90) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_GLOBAL_POSITION, target.longitude_deg, -180, 180) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION, target.relative_north_m, -1e9, 1e9) ||
+        !valid(DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION, target.relative_east_m, -1e9, 1e9) ||
+        (_targetBootId == target.boot_id && target.sequence <= _targetSequence)) {
+        _clearTarget();
+        emit stateChanged();
+        return;
+    }
+    const auto roundTripMs = _targetQueryAge.elapsed();
+    if (roundTripMs >= 1000) {
+        _clearTarget();
+        emit stateChanged();
+        return;
+    }
+    _targetRequestId = 0;
+    _targetQueryAge.invalidate();
+    _targetBootId = target.boot_id;
+    _targetSequence = target.sequence;
+    _targetVehicleId = target.vehicle_system_id;
+    _targetFlags = target.flags;
+    _targetRemainingMs = std::max(0, target.valid_for_ms - static_cast<int>(roundTripMs));
+    _targetData = {{QStringLiteral("targetId"), *id},
+                   {QStringLiteral("source"), *source},
+                   {QStringLiteral("vehicleSystemId"), target.vehicle_system_id},
+                   {QStringLiteral("vehicleComponentId"), target.vehicle_component_id},
+                   {QStringLiteral("controlOwner"), target.control_owner},
+                   {QStringLiteral("rangeSource"), target.range_source},
+                   {QStringLiteral("ageMs"), static_cast<qint64>(target.age_ms) + roundTripMs},
+                   {QStringLiteral("sourceAgeMs"), static_cast<qint64>(target.source_age_ms) + roundTripMs},
+                   {QStringLiteral("azimuthDeg"), target.azimuth_deg},
+                   {QStringLiteral("elevationDeg"), target.elevation_deg},
+                   {QStringLiteral("horizontalRangeM"), target.horizontal_range_m},
+                   {QStringLiteral("latitudeDeg"), target.latitude_deg},
+                   {QStringLiteral("longitudeDeg"), target.longitude_deg},
+                   {QStringLiteral("relativeNorthM"), target.relative_north_m},
+                   {QStringLiteral("relativeEastM"), target.relative_east_m}};
+    _lastTarget.start();
+    emit stateChanged();
+}
+
+QVariantMap DCLinkManager::targetView() const
+{
+    const bool available = _transportReady() && connected() && _vehicleReason.isEmpty() && _observations.size() == 1 &&
+                           _targetVehicleId == _observations.constBegin().key() && _lastTarget.isValid() &&
+                           _lastTarget.elapsed() < 1000;
+    const auto elapsed = available ? _lastTarget.elapsed() : 0;
+    const quint32 flags = available && elapsed < _targetRemainingMs ? _targetFlags : 0;
+    QVariantMap view{
+        {QStringLiteral("available"), available},
+        {QStringLiteral("present"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_PRESENT)},
+        {QStringLiteral("behind"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_BEHIND)},
+        {QStringLiteral("driving"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_DRIVING)},
+        {QStringLiteral("controlOwner"), available ? _targetData.value(QStringLiteral("controlOwner")) : QVariant(0)},
+        {QStringLiteral("vehicleSystemId"), available ? QVariant(_targetVehicleId) : QVariant()},
+        {QStringLiteral("vehicleComponentId"),
+         available ? _targetData.value(QStringLiteral("vehicleComponentId")) : QVariant()},
+        {QStringLiteral("targetId"), flags ? _targetData.value(QStringLiteral("targetId")) : QVariant()},
+        {QStringLiteral("source"), flags ? _targetData.value(QStringLiteral("source")) : QVariant()},
+        {QStringLiteral("rangeSource"),
+         flags & DCLINK_TARGET_VIEW_FLAGS_RANGE ? _targetData.value(QStringLiteral("rangeSource")) : QVariant(0)}};
+    for (const auto& field : {std::pair{"azimuthDeg", DCLINK_TARGET_VIEW_FLAGS_AZIMUTH},
+                              {"elevationDeg", DCLINK_TARGET_VIEW_FLAGS_ELEVATION},
+                              {"horizontalRangeM", DCLINK_TARGET_VIEW_FLAGS_RANGE},
+                              {"latitudeDeg", DCLINK_TARGET_VIEW_FLAGS_GLOBAL_POSITION},
+                              {"longitudeDeg", DCLINK_TARGET_VIEW_FLAGS_GLOBAL_POSITION},
+                              {"relativeNorthM", DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION},
+                              {"relativeEastM", DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION}}) {
+        const auto key = QString::fromLatin1(field.first);
+        view.insert(key, flags & field.second ? _targetData.value(key) : QVariant());
+    }
+    view.insert(QStringLiteral("ageMs"),
+                flags ? QVariant(_targetData.value(QStringLiteral("ageMs")).toLongLong() + elapsed) : QVariant());
+    view.insert(QStringLiteral("sourceAgeMs"),
+                flags & DCLINK_TARGET_VIEW_FLAGS_SOURCE_AGE
+                    ? QVariant(_targetData.value(QStringLiteral("sourceAgeMs")).toLongLong() + elapsed)
+                    : QVariant());
+    return view;
 }
