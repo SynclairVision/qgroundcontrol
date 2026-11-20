@@ -23,6 +23,7 @@ qt_add_qml_module(SynclairVisionUIModule
         SVBackend.h
     QML_FILES
         Flyview/SVDCLinkNoseView.qml
+        Flyview/SVDCLinkOptions.qml
         Flyview/SVDCLinkPanel.qml
         Flyview/SVDCLinkStatusStrip.qml
         Flyview/SVDCLinkTargetDetails.qml

@@ -17,6 +17,8 @@ Item {
     clip: true
 
     property alias videoContentAreaItem: videoContentArea
+    readonly property rect commandToolsRect: Qt.rect(widgetLayer.x, widgetLayer.y,
+                                                    widgetLayer.width, widgetLayer.height)
     // Once connected, the remote VIDEO_OUTPUT_PARAMETERS state is authoritative.
     // The settings value is only a draft used while editing or awaiting refresh.
     property var detectionPosition: SVState.effectiveAiDetectionOverlayPosition

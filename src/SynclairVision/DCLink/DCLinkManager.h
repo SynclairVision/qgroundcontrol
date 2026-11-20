@@ -28,8 +28,15 @@ class DCLinkManager final : public QObject
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(QString vehicleText READ vehicleText NOTIFY stateChanged)
     Q_PROPERTY(QString commandText READ commandText NOTIFY stateChanged)
+    Q_PROPERTY(QString commandNameText READ commandNameText NOTIFY stateChanged)
+    Q_PROPERTY(QString commandStateText READ commandStateText NOTIFY stateChanged)
+    Q_PROPERTY(bool commandOutcomeUnknown READ commandOutcomeUnknown NOTIFY stateChanged)
+    Q_PROPERTY(bool commandPending READ commandPending NOTIFY stateChanged)
     Q_PROPERTY(QString targetText READ targetText NOTIFY stateChanged)
+    Q_PROPERTY(QString targetStateText READ targetStateText NOTIFY stateChanged)
     Q_PROPERTY(QString navigationText READ navigationText NOTIFY stateChanged)
+    Q_PROPERTY(bool navigationHealthy READ navigationHealthy NOTIFY stateChanged)
+    Q_PROPERTY(double aircraftHeadingDeg READ aircraftHeadingDeg NOTIFY stateChanged)
     Q_PROPERTY(QString feedback READ feedback NOTIFY stateChanged)
     Q_PROPERTY(QString availabilityReason READ availabilityReason NOTIFY stateChanged)
     Q_PROPERTY(QVariantList actions READ actions NOTIFY stateChanged)
@@ -43,8 +50,17 @@ public:
     QString statusText() const;
     QString vehicleText() const;
     QString commandText() const;
+    QString commandNameText() const;
+    QString commandStateText() const;
+
+    bool commandOutcomeUnknown() const { return _awaitingReconciliation; }
+
+    bool commandPending() const { return _mutation.has_value(); }
     QString targetText() const;
+    QString targetStateText() const;
     QString navigationText() const;
+    bool navigationHealthy() const;
+    double aircraftHeadingDeg() const;
     QString feedback() const { return _feedback; }
     QString availabilityReason() const;
     QVariantList actions() const;
@@ -81,6 +97,7 @@ private:
     void _receiveTarget(const mavlink_message_t& message);
     void _tick();
     void _receiveMessage(const mavlink_message_t& message);
+    void _receiveHeading(const mavlink_message_t& message);
     void _resetSession();
     void _resetCatalog();
     void _markOutcomeUnknown();
@@ -96,6 +113,9 @@ private:
     QElapsedTimer _lastStatus;
     QElapsedTimer _lastPoll;
     QElapsedTimer _lastTarget;
+    QElapsedTimer _lastHeading;
+    double _aircraftHeadingDeg = 0;
+    int _headingVehicleId = 0;
     QElapsedTimer _targetQueryAge;
     QVariantMap _targetData;
     quint64 _targetNextId = 1;

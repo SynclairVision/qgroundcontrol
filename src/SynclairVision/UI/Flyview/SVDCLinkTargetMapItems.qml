@@ -20,6 +20,7 @@ MapItemGroup {
     required property var client
     required property var mapControl
     property bool rangeRings: false
+    property bool compact: false
 
     signal detailsRequested
 
@@ -97,12 +98,14 @@ MapItemGroup {
         sourceItem: Rectangle {
             id: marker
 
-            Accessible.name: qsTr("DCLink target; open read-only details")
+            Accessible.name: root.compact ? qsTr("DCLink target; enlarge map for details")
+                : qsTr("DCLink target; open read-only details")
             border.color: palette.text
             color: palette.brandPrimary
-            height: targetLabel.implicitHeight + ScreenTools.defaultFontPixelHeight
+            height: root.compact ? ScreenTools.defaultFontPixelHeight * 0.9
+                : targetLabel.implicitHeight + ScreenTools.defaultFontPixelHeight
             radius: height / 2
-            width: targetLabel.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
+            width: root.compact ? height : targetLabel.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
 
             QGCLabel {
                 id: targetLabel
@@ -110,11 +113,13 @@ MapItemGroup {
                 anchors.centerIn: parent
                 color: palette.text
                 text: qsTr("Target")
+                visible: !root.compact
             }
 
             MouseArea {
                 acceptedButtons: Qt.LeftButton
                 anchors.fill: parent
+                enabled: !root.compact
                 preventStealing: false
 
                 onClicked: root.detailsRequested()

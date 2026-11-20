@@ -43,7 +43,7 @@ remain unchanged. No automated QGC test targets are part of this workflow.
 ## Nose view
 
 With the SynclairVision overlay enabled and the map as the main view, the nose
-card appears below the existing DCLink menu. The map remains visible and
+card appears on the left, with the command panel on the right. The map remains visible and
 interactive. Select Nose to open the nose view, or select it again to collapse
 the plot. Select Radar to switch the same card to target radar. Opening the
 command menu takes priority: when remaining space is limited, the card keeps
@@ -74,19 +74,28 @@ height. Verify that map gestures and the existing flight controls still work.
 
 ## Target radar
 
-Select Radar below the DCLink menu to view the shared target's horizontal
+Select Radar on the target card to view the shared target's horizontal
 position relative to the aircraft. Nose and Radar share one card, so only one
 plot occupies map space. Select the active view again to collapse or expand
 its plot. The command menu retains priority; compact readouts remain when the
 plot cannot fit, and the card hides if even those readouts cannot fit. Space
 reserved for the video inset and bottom controls is unchanged.
 
-The radar is north-up: north at the top, east to the right, with the aircraft
-at the centre cross. It uses the shared `relativeNorthM`/`relativeEastM` pair;
-both must be fresh and finite. It needs no GPS coordinates or heading. It
-does not combine nose azimuth with range, use independently timed aircraft
-telemetry, or invent a position from angular-only observations. Zero offsets
+The radar defaults to north-up: north at the top, east to the right, with the
+aircraft at the centre. It uses the shared `relativeNorthM`/`relativeEastM` pair;
+both must be fresh and finite. North-up needs no GPS coordinates or heading. It
+does not combine nose azimuth with range or independently timed aircraft
+position to invent a relative offset from angular-only observations. Zero offsets
 are valid and put the target at the centre.
+
+Display options also offers heading-up. `aircraftHeadingDeg` accepts only
+ATTITUDE yaw or GLOBAL_POSITION_INT heading from the autopilot component of
+the single matching aircraft on the operator bus. It is unavailable after
+1.5 seconds without a valid message, or on session/aircraft ambiguity or loss.
+This is local receipt age, not a guarantee against delayed router replay.
+Heading-up rotates the existing north/east offsets; it does not reconstruct
+target position from angles/range. Invalid heading hides the dot and compass
+and explicitly reports heading unavailable, preserving the requested orientation.
 
 Offset is the horizontal distance calculated from the same north/east pair
 used for plotting. The scale fits automatically using 1/2/5 distance steps,
@@ -116,8 +125,11 @@ in the complete application.
 The [operator guide](../../../docs/en/qgc-user-guide/fly_view/dclink.md)
 contains connection prerequisites, display semantics and a manual acceptance
 matrix. Display preferences use the existing `SVSettings` persistence/reset
-path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded` and
-`dclinkMapRangeRings`. Automatic compact layout does not overwrite the user's
+path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded`,
+`dclinkMapRangeRings`, `dclinkRadarHeadingUp` and `dclinkFavoriteCommands`.
+Favorites contain stable command identifiers; Cancel remains fixed and only
+applicable aircraft actions are shown. The command list is collapsed initially.
+Changing favorites does not mutate runtime state. Automatic compact layout does not overwrite the user's
 manual expansion preference.
 
 The standard QtLocation map attaches one `SVDCLinkTargetMapItems` group through
@@ -128,11 +140,20 @@ line and optional geographic distance rings. Target updates never set map
 centre, zoom, bearing or follow policy. The experimental GeoMap engine does
 not expose this attachment API; the target card stays available there.
 
+The same map group stays attached when the map becomes the video layout's
+small inset. The marker becomes a compact dot; the existing PIP click behavior
+still expands the map. No map navigation property is changed by the overlay.
+
 Marker taps open read-only details. The popup clears on loss, aircraft changes
 or leaving the card view, and its body scrolls within the current window.
 Control ownership comes from the fresh target snapshot, with no inference
 from command state. Shared-target-capable peers show observation freshness in
-the strip; status-only peers retain their existing high-level target text.
+the strip; status-only peers use concise conventional high-level target states.
+The compact strip uses `commandNameText`, `commandStateText`,
+`commandOutcomeUnknown`, `commandPending`, `targetStateText` and
+`navigationHealthy`, keeping errors/uncertain outcomes visible without parsing
+translated status strings. Full status/navigation detail is available by
+selecting DCLink. The connection dot reflects fresh correlated STATUS only.
 
 Validation must distinguish the linked application, native-map simulated UI
 review, backend protocol review and actual vehicle operation. Do not treat a

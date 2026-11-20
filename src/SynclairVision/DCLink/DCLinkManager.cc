@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#include <numbers>
 
 // clang-format off: load the full bus before DigiView's narrower dialect header.
 #include "MAVLinkLib.h"
@@ -25,6 +26,7 @@ constexpr quint8 DCLINK_SYSTEM_ID = 252;
 constexpr quint8 DCLINK_COMPONENT_ID = 67;
 constexpr int STATUS_TIMEOUT_MS = 3000;
 constexpr int VEHICLE_TIMEOUT_MS = 3500;
+constexpr int HEADING_TIMEOUT_MS = 1500;
 constexpr int MAX_CATALOG_ITEMS = 256;
 constexpr quint32 REQUEST_ID_COUNT = 65536;
 
@@ -151,6 +153,7 @@ void DCLinkManager::_resetSession()
     _statusFlags = 0;
     _clearTarget();
     _lastStatus.invalidate();
+    _lastHeading.invalidate();
     _lastPoll.invalidate();
     _statusRequest.reset();
     _resetCatalog();
@@ -179,15 +182,18 @@ void DCLinkManager::_updateVehicle()
 
     _vehicleKind = VehicleKind::Unknown;
     if (_observations.isEmpty()) {
+        _lastHeading.invalidate();
         _vehicleReason = tr("Waiting for aircraft telemetry on this connection.");
         return;
     }
     if (_observations.size() != 1) {
+        _lastHeading.invalidate();
         _vehicleReason = tr("Multiple aircraft share this DCLink bus. Commands are unavailable.");
         return;
     }
     const auto it = _observations.constBegin();
     if (_selectedVehicleId != 0 && _selectedVehicleId != it.key()) {
+        _lastHeading.invalidate();
         _vehicleReason = tr("The selected aircraft is not on this DCLink connection.");
         return;
     }
@@ -265,6 +271,11 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
             _updateVehicle();
             emit stateChanged();
         }
+        return;
+    }
+    if (message.compid == MAV_COMP_ID_AUTOPILOT1 &&
+        (message.msgid == MAVLINK_MSG_ID_ATTITUDE || message.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT)) {
+        _receiveHeading(message);
         return;
     }
     if (message.sysid != DCLINK_SYSTEM_ID || message.compid != DCLINK_COMPONENT_ID) {
@@ -427,6 +438,99 @@ QString DCLinkManager::commandText() const
     if (_commandState == DCLINK_COMMAND_STATE_ERROR)
         return tr("%1 · Error").arg(label);
     return _commandState == DCLINK_COMMAND_STATE_RUNNING ? tr("%1 · Running").arg(label) : label;
+}
+
+QString DCLinkManager::commandNameText() const
+{
+    if (!connected())
+        return tr("Unavailable");
+    if (_activeCommand.isEmpty() || _activeCommand == QStringLiteral("idle") ||
+        _activeCommand == QStringLiteral("none")) {
+        return tr("Idle");
+    }
+    return _commandLabel(_activeCommand);
+}
+
+QString DCLinkManager::commandStateText() const
+{
+    if (!connected())
+        return {};
+    if (_commandState == DCLINK_COMMAND_STATE_STOPPING)
+        return tr("Stopping");
+    if (_commandState == DCLINK_COMMAND_STATE_ERROR)
+        return tr("Error");
+    return {};
+}
+
+QString DCLinkManager::targetStateText() const
+{
+    if (!connected())
+        return tr("Unavailable");
+    if (_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW) {
+        const auto target = targetView();
+        if (!target.value(QStringLiteral("available")).toBool())
+            return tr("Unavailable");
+        if (target.value(QStringLiteral("present")).toBool()) {
+            return target.value(QStringLiteral("driving")).toBool() ? tr("Guiding") : tr("Tracking");
+        }
+        return (_targetFlags & DCLINK_TARGET_VIEW_FLAGS_PRESENT) || _targetStatus == DCLINK_TARGET_STATUS_LOST
+                   ? tr("Lost")
+                   : tr("None");
+    }
+    switch (_targetStatus) {
+        case DCLINK_TARGET_STATUS_SEEN:
+            return tr("Detected");
+        case DCLINK_TARGET_STATUS_STABLE:
+            return tr("Tracking");
+        case DCLINK_TARGET_STATUS_LOCKED:
+            return tr("Locked");
+        case DCLINK_TARGET_STATUS_LOST:
+            return tr("Lost");
+        default:
+            return tr("None");
+    }
+}
+
+bool DCLinkManager::navigationHealthy() const
+{
+    return connected() && (_navigationStatus == DCLINK_NAVIGATION_STATUS_READY ||
+                           _navigationStatus == DCLINK_NAVIGATION_STATUS_ACTIVE);
+}
+
+void DCLinkManager::_receiveHeading(const mavlink_message_t& message)
+{
+    _updateVehicle();
+    if (!_vehicleReason.isEmpty() || _observations.size() != 1 || message.sysid != _observations.constBegin().key()) {
+        return;
+    }
+    double heading = std::numeric_limits<double>::quiet_NaN();
+    if (message.msgid == MAVLINK_MSG_ID_ATTITUDE) {
+        mavlink_attitude_t attitude{};
+        mavlink_msg_attitude_decode(&message, &attitude);
+        if (std::isfinite(attitude.yaw) && std::abs(attitude.yaw) <= std::numbers::pi + 0.001) {
+            heading = attitude.yaw * 180.0 / std::numbers::pi;
+        }
+    } else {
+        mavlink_global_position_int_t position{};
+        mavlink_msg_global_position_int_decode(&message, &position);
+        if (position.hdg < 36000)
+            heading = position.hdg / 100.0;
+    }
+    if (!std::isfinite(heading))
+        return;
+    _aircraftHeadingDeg = std::fmod(heading + 360.0, 360.0);
+    _headingVehicleId = message.sysid;
+    _lastHeading.start();
+}
+
+double DCLinkManager::aircraftHeadingDeg() const
+{
+    if (!_transportReady() || !connected() || !_vehicleReason.isEmpty() || _observations.size() != 1 ||
+        _headingVehicleId != _observations.constBegin().key() || !_lastHeading.isValid() ||
+        _lastHeading.elapsed() > HEADING_TIMEOUT_MS) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    return _aircraftHeadingDeg;
 }
 
 QString DCLinkManager::targetText() const

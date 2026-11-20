@@ -13,11 +13,14 @@ Item {
     required property var client
     property bool rangeRings: false
     property bool mapAvailable: false
+    property bool headingUp: false
+    property real aircraftHeadingDeg: NaN
     property int _detailsVehicleId: 0
     readonly property var _target: client ? client.targetView : ({})
 
     signal viewPreferenceChanged(bool radarSelected, bool expanded)
     signal rangeRingsRequested(bool enabled)
+    signal optionsRequested()
 
     function openDetails() {
         if (!_target || !_target.available || !_target.present)
@@ -103,20 +106,35 @@ Item {
 
         client: root.client
         expanded: root.expanded
+        headingUp: root.headingUp
+        aircraftHeadingDeg: root.aircraftHeadingDeg
         maximumHeight: root._contentHeight
         visible: root.radarSelected
         width: root.width
         y: selector.height + root.margin
     }
 
-    QGCButton {
+    RowLayout {
         id: detailsButton
 
         y: root.height - height
         width: root.width
-        text: qsTr("Target details")
-        enabled: !!root._target && root._target.available === true && root._target.present === true
-        onClicked: root.openDetails()
+        spacing: root.margin
+
+        QGCButton {
+            Layout.fillWidth: true
+            text: qsTr("Details")
+            enabled: !!root._target && root._target.available === true && root._target.present === true
+            onClicked: root.openDetails()
+        }
+
+        QGCButton {
+            Accessible.name: qsTr("Display options")
+            text: "⋯"
+            onClicked: root.optionsRequested()
+            ToolTip.visible: hovered
+            ToolTip.text: qsTr("Display options")
+        }
     }
 
     Popup {
@@ -130,6 +148,7 @@ Item {
         y: parent ? (parent.height - height) / 2 : 0
         padding: root.margin
         modal: true
+        focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle {

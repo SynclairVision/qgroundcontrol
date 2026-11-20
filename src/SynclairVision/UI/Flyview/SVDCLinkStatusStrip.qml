@@ -1,13 +1,18 @@
 import QGroundControl
 import QGroundControl.Controls
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 Item {
     id: root
 
     required property var client
+    readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.25
+    readonly property real minimumWidth: ScreenTools.defaultFontPixelWidth * 28
+    readonly property real _rowHeight: ScreenTools.defaultFontPixelHeight * 1.5
     readonly property var _target: client ? client.targetView : ({})
+    readonly property bool _connected: !!client && client.connected === true
     readonly property string _controlText: {
         if (!_target || !_target.available)
             return qsTr("Unavailable")
@@ -18,20 +23,37 @@ Item {
         default: return qsTr("Unknown")
         }
     }
-    readonly property string _targetText: {
-        if (!_target || !_target.supported)
-            return client.targetText
-        if (!_target.available)
-            return qsTr("Target data unavailable")
-        if (!_target.present)
-            return qsTr("No fresh target")
-        return _target.driving && _target.controlOwner === 3
-            ? qsTr("Target driving control") : qsTr("Target observed")
+    readonly property string _commandAlert: {
+        if (!client)
+            return ""
+        const states = []
+        if (client.commandStateText.length > 0)
+            states.push(client.commandStateText)
+        if (client.commandOutcomeUnknown)
+            states.push(qsTr("Check command"))
+        else if (client.commandPending)
+            states.push(qsTr("Pending"))
+        return states.join(" · ")
     }
-    readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.5
+    readonly property bool _navigationWarning: _connected && !client.navigationHealthy
+    readonly property string _alertText: [_commandAlert,
+        _navigationWarning ? client.navigationText : ""].filter((text) => text.length > 0).join(" · ")
+    readonly property bool _warning: _navigationWarning || (!!client && (client.commandOutcomeUnknown
+        || client.commandStateText.length > 0))
 
     height: implicitHeight
     implicitHeight: content.implicitHeight + margin * 2
+    implicitWidth: connectionIndicator.implicitWidth + commandLabel.implicitWidth + controlLabel.implicitWidth
+        + targetLabel.implicitWidth + margin * 8
+
+    function openDetails() {
+        detailsPopup.open()
+    }
+
+    onVisibleChanged: {
+        if (!visible)
+            detailsPopup.close()
+    }
 
     QGCPalette {
         id: palette
@@ -44,7 +66,7 @@ Item {
         radius: root.margin
     }
 
-    ColumnLayout {
+    Column {
         id: content
 
         spacing: root.margin
@@ -52,54 +74,196 @@ Item {
         x: root.margin
         y: root.margin
 
-        GridLayout {
-            Layout.fillWidth: true
-            columnSpacing: root.margin * 2
-            columns: {
-                if (width >= ScreenTools.defaultFontPixelWidth * 100)
-                    return 4;
-                if (width >= ScreenTools.defaultFontPixelWidth * 48)
-                    return 2;
-                return 1;
+        Flow {
+            id: statusFields
+
+            spacing: root.margin * 2
+            width: parent.width
+
+            RowLayout {
+                id: connectionIndicator
+
+                height: root._rowHeight
+                spacing: root.margin
+
+                QGCButton {
+                    id: connectionButton
+
+                    Accessible.description: root._connected ? qsTr("Connected; open DCLink details")
+                        : qsTr("Disconnected; open DCLink details")
+                    Layout.preferredHeight: root._rowHeight
+                    bottomPadding: 0
+                    implicitWidth: connectionMetrics.width + leftPadding + rightPadding
+                    leftPadding: root.margin
+                    rightPadding: root.margin
+                    text: qsTr("DCLink")
+                    topPadding: 0
+
+                    background: Rectangle {
+                        color: connectionButton.hovered ? palette.windowShadeLight : "transparent"
+                        radius: root.margin
+                    }
+
+                    onClicked: root.openDetails()
+
+                    ToolTip.delay: 500
+                    ToolTip.text: root.client ? root.client.statusText : qsTr("DCLink disconnected")
+                    ToolTip.visible: hovered
+                }
+
+                Rectangle {
+                    Accessible.name: root._connected ? qsTr("DCLink connected") : qsTr("DCLink disconnected")
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 0.5
+                    Layout.preferredWidth: height
+                    border.color: palette.text
+                    color: root._connected ? palette.colorGreen : palette.colorRed
+                    radius: height / 2
+                }
             }
-            rowSpacing: root.margin
-            uniformCellWidths: true
 
             QGCLabel {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: root.client.statusText
+                id: commandLabel
+
+                height: Math.max(root._rowHeight, implicitHeight)
+                text: qsTr("Command: %1").arg(root.client ? root.client.commandNameText : qsTr("Unavailable"))
+                textFormat: Text.PlainText
+                verticalAlignment: Text.AlignVCenter
+                width: Math.min(implicitWidth, statusFields.width)
                 wrapMode: Text.Wrap
             }
 
             QGCLabel {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: qsTr("Command: %1 · Control: %2").arg(root.client.commandText).arg(root._controlText)
+                id: controlLabel
+
+                height: Math.max(root._rowHeight, implicitHeight)
+                text: qsTr("Control: %1").arg(root._controlText)
+                textFormat: Text.PlainText
+                verticalAlignment: Text.AlignVCenter
+                width: Math.min(implicitWidth, statusFields.width)
                 wrapMode: Text.Wrap
             }
 
             QGCLabel {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: root._targetText
-                wrapMode: Text.Wrap
-            }
+                id: targetLabel
 
-            QGCLabel {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: root.client.navigationText
+                height: Math.max(root._rowHeight, implicitHeight)
+                text: qsTr("Target: %1").arg(root.client ? root.client.targetStateText : qsTr("Unavailable"))
+                textFormat: Text.PlainText
+                verticalAlignment: Text.AlignVCenter
+                width: Math.min(implicitWidth, statusFields.width)
                 wrapMode: Text.Wrap
             }
         }
 
         QGCLabel {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            text: root.client.availabilityReason
-            visible: root.client.connected && text.length > 0
+            color: root._warning ? palette.warningText : palette.text
+            text: root._alertText
+            textFormat: Text.PlainText
+            visible: text.length > 0
+            width: parent.width
             wrapMode: Text.Wrap
+        }
+    }
+
+    TextMetrics {
+        id: connectionMetrics
+
+        font.family: ScreenTools.normalFontFamily
+        font.pointSize: ScreenTools.defaultFontPointSize
+        text: qsTr("DCLink")
+    }
+
+    Popup {
+        id: detailsPopup
+
+        parent: Overlay.overlay
+        width: Math.max(0, Math.min(ScreenTools.defaultFontPixelHeight * 24,
+                                   parent ? parent.width - root.margin * 4 : 0))
+        height: Math.max(0, Math.min(detailsContents.implicitHeight + padding * 2,
+                                    parent ? parent.height - root.margin * 4 : 0))
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? (parent.height - height) / 2 : 0
+        padding: root.margin * 2
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            border.color: palette.windowShadeLight
+            color: palette.window
+            radius: root.margin
+        }
+
+        contentItem: ScrollView {
+            id: detailsScroll
+
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: detailsContents.implicitHeight
+
+            ColumnLayout {
+                id: detailsContents
+
+                spacing: root.margin * 2
+                width: detailsScroll.availableWidth
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    font.bold: true
+                    text: qsTr("DCLink status")
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: root.client ? root.client.statusText : qsTr("DCLink disconnected")
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: root.client ? root.client.vehicleText : ""
+                    textFormat: Text.PlainText
+                    visible: text.length > 0
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Command: %1").arg(root.client ? root.client.commandText : qsTr("Unavailable"))
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: root.client ? root.client.navigationText : ""
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: root.client ? root.client.availabilityReason : ""
+                    textFormat: Text.PlainText
+                    visible: text.length > 0
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: root.client ? root.client.feedback : ""
+                    textFormat: Text.PlainText
+                    visible: text.length > 0
+                    wrapMode: Text.Wrap
+                }
+
+                QGCButton {
+                    Layout.fillWidth: true
+                    text: qsTr("Close")
+                    onClicked: detailsPopup.close()
+                }
+            }
         }
     }
 }

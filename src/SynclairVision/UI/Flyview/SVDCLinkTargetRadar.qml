@@ -11,6 +11,10 @@ Item {
 
     readonly property bool _available: !!_target && _target.available === true
     readonly property real _distanceM: _positionValid ? Math.hypot(_target.relativeNorthM, _target.relativeEastM) : 0
+    readonly property bool _headingValid: Number.isFinite(aircraftHeadingDeg)
+        && aircraftHeadingDeg >= 0 && aircraftHeadingDeg <= 360
+    readonly property bool _orientationAvailable: !headingUp || _headingValid
+    readonly property real _rotationDeg: headingUp && _headingValid ? aircraftHeadingDeg : 0
     readonly property bool _positionValid: _present && finiteOffset(_target.relativeNorthM)
         && finiteOffset(_target.relativeEastM)
     readonly property bool _present: _available && _target.present === true
@@ -21,19 +25,24 @@ Item {
         if (!_available)
             return client && client.connected ? qsTr("Target data unavailable") : qsTr("DCLink offline");
         if (!_present)
-            return qsTr("No fresh target");
+            return qsTr("No target");
+        if (!root._orientationAvailable)
+            return qsTr("Heading unavailable");
         if (_positionValid)
-            return qsTr("Relative target position");
+            return "";
         if (_rangeValid)
-            return qsTr("Range only · position unavailable");
-        return qsTr("Position unavailable · see Nose");
+            return qsTr("Range only");
+        return qsTr("Position unavailable");
     }
     readonly property var _target: client ? client.targetView : ({})
+    property real aircraftHeadingDeg: NaN
     required property var client
     property bool expanded: true
+    property bool headingUp: false
     readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.5
     property real maximumHeight: parent ? parent.height : implicitHeight
-    readonly property real minimumHeight: readout.implicitHeight + stateLabel.implicitHeight + margin * 3
+    readonly property real minimumHeight: readout.implicitHeight + margin * 2
+        + (stateLabel.visible ? stateLabel.implicitHeight + margin : 0)
     readonly property bool plotVisible: expanded
         && maximumHeight >= minimumHeight + plot.width + legend.implicitHeight + margin * 2
 
@@ -95,7 +104,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             text: {
                 if (root._positionValid)
-                    return qsTr("Offset %1").arg(root.distanceText(root._distanceM));
+                    return root.distanceText(root._distanceM);
                 if (root._rangeValid)
                     return qsTr("Est. range %1").arg(root.distanceText(root._target.horizontalRangeM));
                 return qsTr("Range unavailable");
@@ -109,6 +118,7 @@ Item {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
             text: root._stateText
+            visible: text.length > 0
             wrapMode: Text.Wrap
         }
 
@@ -117,10 +127,15 @@ Item {
 
             readonly property real padding: ScreenTools.defaultFontPixelHeight * 0.9
             readonly property real radius: Math.max(0, width / 2 - padding)
-            readonly property real targetX: root._positionValid
-                ? width / 2 + root._target.relativeEastM / root._radiusM * radius : width / 2
-            readonly property real targetY: root._positionValid
-                ? height / 2 - root._target.relativeNorthM / root._radiusM * radius : height / 2
+            readonly property real headingRadians: root._rotationDeg * Math.PI / 180
+            readonly property real targetRightM: root._positionValid
+                ? root._target.relativeEastM * Math.cos(headingRadians)
+                    - root._target.relativeNorthM * Math.sin(headingRadians) : 0
+            readonly property real targetForwardM: root._positionValid
+                ? root._target.relativeNorthM * Math.cos(headingRadians)
+                    + root._target.relativeEastM * Math.sin(headingRadians) : 0
+            readonly property real targetX: width / 2 + targetRightM / root._radiusM * radius
+            readonly property real targetY: height / 2 - targetForwardM / root._radiusM * radius
 
             Layout.fillWidth: true
             implicitHeight: width
@@ -163,38 +178,28 @@ Item {
                 width: Math.max(1, ScreenTools.defaultFontPixelWidth * 0.1)
             }
 
-            QGCLabel {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                font.pointSize: ScreenTools.smallFontPointSize
-                text: qsTr("N")
+            Repeater {
+                model: [qsTr("N"), qsTr("E"), qsTr("S"), qsTr("W")]
+
+                QGCLabel {
+                    required property int index
+                    required property string modelData
+                    readonly property real bearingRadians: (index * 90 - root._rotationDeg) * Math.PI / 180
+                    readonly property real labelRadius: plot.radius + plot.padding * 0.55
+
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    text: modelData
+                    visible: root._orientationAvailable
+                    x: plot.width / 2 + Math.sin(bearingRadians) * labelRadius - width / 2
+                    y: plot.height / 2 - Math.cos(bearingRadians) * labelRadius - height / 2
+                }
             }
 
             QGCLabel {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                font.pointSize: ScreenTools.smallFontPointSize
-                text: qsTr("E")
-            }
-
-            QGCLabel {
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                font.pointSize: ScreenTools.smallFontPointSize
-                text: qsTr("S")
-            }
-
-            QGCLabel {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                font.pointSize: ScreenTools.smallFontPointSize
-                text: qsTr("W")
-            }
-
-            QGCLabel {
-                Accessible.name: qsTr("Aircraft position")
+                Accessible.name: root._headingValid ? qsTr("Aircraft position and heading") : qsTr("Aircraft position")
                 anchors.centerIn: parent
-                text: "+"
+                rotation: root.headingUp || !root._headingValid ? 0 : root.aircraftHeadingDeg
+                text: root._headingValid ? "▲" : "+"
             }
 
             Rectangle {
@@ -204,7 +209,7 @@ Item {
                 color: palette.brandPrimary
                 height: width
                 radius: width / 2
-                visible: root._positionValid
+                visible: root._positionValid && root._orientationAvailable
                 width: ScreenTools.defaultFontPixelHeight * 0.8
                 x: plot.targetX - width / 2
                 y: plot.targetY - height / 2
@@ -215,9 +220,12 @@ Item {
             id: legend
 
             Layout.fillWidth: true
+            Accessible.name: qsTr("Outer ring %1").arg(root.distanceText(root._radiusM))
             font.pointSize: ScreenTools.smallFontPointSize
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("North-up · outer ring %1").arg(root.distanceText(root._radiusM))
+            text: qsTr("%1 · %2")
+                .arg(root.headingUp ? (root._headingValid ? qsTr("HDG ↑") : qsTr("HDG —")) : qsTr("N ↑"))
+                .arg(root.distanceText(root._radiusM))
             visible: root.plotVisible
             wrapMode: Text.Wrap
         }

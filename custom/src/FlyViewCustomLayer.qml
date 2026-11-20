@@ -20,12 +20,23 @@ Item {
     readonly property var widgetLayer: flyView ? flyView.customLayerWidgetLayer : null
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     readonly property var _target: SVBackend.dclink.targetView
+    readonly property bool _mainMap: !!flyView && flyView.customLayerMainWindowIsMap
+    readonly property bool _overlayVisible: visible && SVState.synclairOverlay && !SVState.cursorTrackingSessionActive
     readonly property bool _targetMapAvailable: !!mapControl && typeof mapControl.addMapItemGroup === "function"
     readonly property var _aircraftCoordinate: _activeVehicle && _target.available
         && _activeVehicle.id === _target.vehicleSystemId && _activeVehicle.vehicleLinkManager
         && !_activeVehicle.vehicleLinkManager.communicationLost && _activeVehicle.coordinate.isValid
         ? _activeVehicle.coordinate : QtPositioning.coordinate()
     readonly property var toolbar: flyView ? flyView.customLayerToolbar : null
+    readonly property bool _separateColumns: width - parentToolInsets.leftEdgeTopInset
+        - parentToolInsets.rightEdgeTopInset >= dclinkPanel.width * 2 + SVUnits.margin * 3
+    readonly property rect _videoToolsRect: {
+        if (_mainMap)
+            return Qt.rect(0, 0, 0, 0)
+        const tools = synclairFlyView.commandToolsRect
+        const origin = root.mapFromItem(synclairFlyView, tools.x, tools.y)
+        return Qt.rect(origin.x, origin.y, tools.width, tools.height)
+    }
     readonly property bool statusStripBelowRightTools: width - parentToolInsets.leftEdgeTopInset
         - parentToolInsets.rightEdgeTopInset - SVUnits.margin * 2 < ScreenTools.defaultFontPixelWidth * 32
     readonly property bool welcomePromptAcknowledged: {
@@ -36,24 +47,28 @@ Item {
     QGCToolInsets {
         id: toolInsets
 
-        leftEdgeTopInset: dclinkPanel.visible
-            ? Math.max(parentToolInsets.leftEdgeTopInset, dclinkPanel.x + dclinkPanel.width)
-            : parentToolInsets.leftEdgeTopInset
+        leftEdgeTopInset: dclinkTargetViews.visible && root._separateColumns
+            ? Math.max(root.parentToolInsets.leftEdgeTopInset, dclinkTargetViews.x + dclinkTargetViews.width)
+            : root.parentToolInsets.leftEdgeTopInset
         leftEdgeCenterInset: parentToolInsets.leftEdgeCenterInset
         leftEdgeBottomInset: parentToolInsets.leftEdgeBottomInset
-        rightEdgeTopInset: parentToolInsets.rightEdgeTopInset
+        rightEdgeTopInset: dclinkPanel.visible
+            ? Math.max(root.parentToolInsets.rightEdgeTopInset, root.width - dclinkPanel.x)
+            : root.parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset: parentToolInsets.rightEdgeCenterInset
         rightEdgeBottomInset: parentToolInsets.rightEdgeBottomInset
-        topEdgeLeftInset: dclinkTargetViews.visible
+        topEdgeLeftInset: dclinkTargetViews.visible && root._separateColumns
             ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkTargetViews.y + dclinkTargetViews.height)
-            : (dclinkPanel.visible
-                ? Math.max(root.parentToolInsets.topEdgeLeftInset, dclinkPanel.y + dclinkPanel.height)
-                : root.parentToolInsets.topEdgeLeftInset)
+            : root.parentToolInsets.topEdgeLeftInset
         topEdgeCenterInset: dclinkStatusStrip.visible
             ? Math.max(root.parentToolInsets.topEdgeCenterInset,
                        dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin)
             : root.parentToolInsets.topEdgeCenterInset
-        topEdgeRightInset: parentToolInsets.topEdgeRightInset
+        topEdgeRightInset: dclinkPanel.visible
+            ? Math.max(root.parentToolInsets.topEdgeRightInset,
+                       dclinkTargetViews.visible && !root._separateColumns
+                           ? dclinkTargetViews.y + dclinkTargetViews.height : dclinkPanel.y + dclinkPanel.height)
+            : root.parentToolInsets.topEdgeRightInset
         bottomEdgeLeftInset: parentToolInsets.bottomEdgeLeftInset
         bottomEdgeCenterInset: parentToolInsets.bottomEdgeCenterInset
         bottomEdgeRightInset: parentToolInsets.bottomEdgeRightInset
@@ -102,43 +117,77 @@ Item {
         y: root.statusStripBelowRightTools
             ? Math.max(root.parentToolInsets.topEdgeCenterInset, root.parentToolInsets.topEdgeRightInset)
             : root.parentToolInsets.topEdgeCenterInset
-        width: Math.max(0, root.width - x - SVUnits.margin
-                        - (root.statusStripBelowRightTools ? 0 : root.parentToolInsets.rightEdgeTopInset))
+        readonly property real availableWidth: Math.max(0, root.width - x - SVUnits.margin
+            - (root.statusStripBelowRightTools ? 0 : root.parentToolInsets.rightEdgeTopInset))
+        width: Math.min(availableWidth, Math.max(availableWidth / 2, implicitWidth))
         client: SVBackend.dclink
-        visible: SVState.synclairOverlay && !SVState.cursorTrackingSessionActive && width > 0
+        visible: root._overlayVisible && width > 0
         z: 2
     }
 
     SVDCLinkPanel {
         id: dclinkPanel
 
-        x: root.parentToolInsets.leftEdgeTopInset + SVUnits.margin
-        y: dclinkStatusStrip.visible ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin : 0
-        width: Math.min(ScreenTools.defaultFontPixelHeight * 15, Math.max(0, root.width - x))
-        maximumHeight: Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeLeftInset - SVUnits.margin)
-        visible: SVState.synclairOverlay && root.flyView && root.flyView.customLayerMainWindowIsMap
-            && root.mapControl && root.mapControl.visible && !SVState.cursorTrackingSessionActive
+        x: root._mainMap
+            ? Math.max(0, root.width - width - root.parentToolInsets.rightEdgeTopInset - SVUnits.margin)
+            : Math.max(0, root._videoToolsRect.x + root._videoToolsRect.width - width)
+        y: root._mainMap
+            ? (dclinkStatusStrip.visible ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin : 0)
+            : root._videoToolsRect.y + SVUnits.objectWidth + SVUnits.margin
+        width: Math.min(ScreenTools.defaultFontPixelHeight * 15,
+                        Math.max(0, root.width - root.parentToolInsets.leftEdgeTopInset
+                                 - root.parentToolInsets.rightEdgeTopInset - SVUnits.margin * 2))
+        maximumHeight: root._mainMap
+            ? Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeRightInset - SVUnits.margin)
+            : Math.max(0, root._videoToolsRect.y + root._videoToolsRect.height - y
+                       - SVUnits.objectWidth - SVUnits.margin)
+        visible: root._overlayVisible && root.flyView && width > 0
+        onFavoriteCommandsChangedByUser: (commands) => SVSettings.dclinkFavoriteCommands = commands
+        onOptionsRequested: displayOptions.open()
         z: 2
     }
 
     SVDCLinkTargetViews {
         id: dclinkTargetViews
 
-        x: dclinkPanel.x
-        y: dclinkPanel.y + dclinkPanel.height + SVUnits.margin
+        x: root._separateColumns ? root.parentToolInsets.leftEdgeTopInset + SVUnits.margin : dclinkPanel.x
+        y: root._separateColumns
+            ? dclinkStatusStrip.y + dclinkStatusStrip.height + SVUnits.margin
+            : dclinkPanel.y + dclinkPanel.height + SVUnits.margin
         width: dclinkPanel.width
-        maximumHeight: Math.max(0, root.height - y - root.parentToolInsets.bottomEdgeLeftInset - SVUnits.margin)
+        maximumHeight: Math.max(0, root.height - y - (root._separateColumns
+            ? root.parentToolInsets.bottomEdgeLeftInset : root.parentToolInsets.bottomEdgeRightInset) - SVUnits.margin)
         client: SVBackend.dclink
         rangeRings: SVSettings.dclinkMapRangeRings
         mapAvailable: root._targetMapAvailable
+        headingUp: SVSettings.dclinkRadarHeadingUp
+        aircraftHeadingDeg: SVBackend.dclink.aircraftHeadingDeg
         onViewPreferenceChanged: (radarSelected, expanded) => {
             SVSettings.dclinkTargetRadarSelected = radarSelected
             SVSettings.dclinkTargetPlotExpanded = expanded
         }
         onRangeRingsRequested: (enabled) => SVSettings.dclinkMapRangeRings = enabled
-        visible: dclinkPanel.visible && width >= ScreenTools.defaultFontPixelWidth * 18
+        onOptionsRequested: displayOptions.open()
+        visible: root._overlayVisible && root._mainMap && root.mapControl && root.mapControl.visible
+            && width >= ScreenTools.defaultFontPixelWidth * 18
             && maximumHeight >= minimumHeight
         z: 2
+    }
+
+    Binding {
+        target: dclinkPanel
+        property: "favoriteCommands"
+        value: SVSettings.dclinkFavoriteCommands
+    }
+
+    SVDCLinkOptions {
+        id: displayOptions
+
+        headingUp: SVSettings.dclinkRadarHeadingUp
+        rangeRings: SVSettings.dclinkMapRangeRings
+        mapAvailable: root._targetMapAvailable
+        onHeadingUpRequested: (enabled) => SVSettings.dclinkRadarHeadingUp = enabled
+        onRangeRingsRequested: (enabled) => SVSettings.dclinkMapRangeRings = enabled
     }
 
     Binding {
@@ -154,16 +203,21 @@ Item {
     }
 
     Loader {
-        active: root._targetMapAvailable && dclinkPanel.visible
+        active: root._targetMapAvailable && root._overlayVisible && root.mapControl.visible
         sourceComponent: Component {
             SVDCLinkTargetMapItems {
                 client: SVBackend.dclink
                 mapControl: root.mapControl
                 aircraftCoordinate: root._aircraftCoordinate
                 rangeRings: SVSettings.dclinkMapRangeRings
+                compact: !root._mainMap
                 onDetailsRequested: dclinkTargetViews.openDetails()
             }
         }
+    }
+
+    on_OverlayVisibleChanged: {
+        if (!_overlayVisible) displayOptions.close()
     }
 
     SVShortcutHandler {

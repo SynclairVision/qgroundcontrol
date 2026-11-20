@@ -25,6 +25,8 @@ QtObject {
         dclinkTargetRadarSelected: false,
         dclinkTargetPlotExpanded: true,
         dclinkMapRangeRings: false,
+        dclinkRadarHeadingUp: false,
+        dclinkFavoriteCommands: [],
         compassType: "horizontal",
         compassSize: 100,
         networkIPAdress: "192.168.4.60",
@@ -140,6 +142,8 @@ QtObject {
         property alias dclinkTargetRadarSelected: root.dclinkTargetRadarSelected
         property alias dclinkTargetPlotExpanded: root.dclinkTargetPlotExpanded
         property alias dclinkMapRangeRings: root.dclinkMapRangeRings
+        property alias dclinkRadarHeadingUp: root.dclinkRadarHeadingUp
+        property alias dclinkFavoriteCommands: root.dclinkFavoriteCommands
         property alias compassType: root.compassType
         property alias compassSize: root.compassSize
         property alias controlPanelPosition: root.controlPanelPosition
@@ -534,6 +538,8 @@ QtObject {
     property bool dclinkTargetRadarSelected: false
     property bool dclinkTargetPlotExpanded: true
     property bool dclinkMapRangeRings: false
+    property bool dclinkRadarHeadingUp: false
+    property var dclinkFavoriteCommands: []
     property string compassType: "horizontal"
     property int compassSize: 100
 
