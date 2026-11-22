@@ -33,18 +33,33 @@ compatible runtime. Target traffic cannot keep a stale DCLink connection online.
 
 ## Commands and favorites
 
-The **Commands** panel is on the right in both map and video layouts. **Cancel**
-stays visible. Expand **Commands** to see the other existing aircraft commands;
+The **Commands** panel is on the right in the map layout. **Cancel** stays
+visible there. Expand **Commands** to see the other existing aircraft commands;
 select a star to keep a command visible when the list is collapsed. Select its
-star again to remove it from favorites. Changing a favorite never starts a
+star again to remove it from favorites. Cancel also has a star for choosing
+whether it appears among video favorites. Changing a favorite never starts a
 command. Each command retains its existing connection, aircraft and availability
 checks. Cancel is a DCLink command cancellation, not an aircraft emergency-stop
 or disarm control.
 
 Favorites start empty and are saved using command identifiers, so a copter's
 favorites do not become different plane commands. Unavailable actions remain
-disabled, and the panel scrolls when needed. The list starts collapsed. Select
-the panel's **Display options** button for radar orientation and map rings.
+disabled, and the panel scrolls when needed. The list starts collapsed.
+
+The single gear at the right end of the status strip opens **DCLink options**.
+It remains available when video commands are hidden. **Show favorites on video**
+is off initially. When enabled, video shows only applicable starred commands,
+with no command dropdown, editing stars or automatic Cancel button. If there
+are no applicable favorites, no command panel is shown.
+
+Choose **Top right**, **Right center** or **Bottom right** for video favorites.
+The preset is saved and adjusts around visible DigiView menus, the joystick,
+camera compass/attitude displays, tracking flags, the map inset, QGC's
+multi-vehicle panel, recording information and notifications. Expanded menus and window resizing
+update the available space. Longer lists scroll; if even one command cannot
+fit without overlapping, the Options gear shows a warning badge and its
+tooltip/options report **Favorites need more space**.
+The favorites are hidden while the DigiView settings drawer is open.
 
 ## Nose and radar card
 
@@ -63,13 +78,16 @@ menu retains priority, with scrolling where needed.
 - **Radar** plots fresh target-minus-aircraft north/east
   offsets. Its scale fits automatically, with the outer ring labelled and an
   inner ring at half that distance. It needs both offsets; range or angles
-  alone do not place a dot. Zero offsets are valid. **Display options** offers
+  alone do not place a dot. Zero offsets are valid. **DCLink options** offers
   **North up** (the default) or **Aircraft heading up**, and saves the choice.
   The plot labels its current orientation. Heading-up needs fresh matching
   autopilot ATTITUDE or GLOBAL_POSITION_INT heading on the DigiView MAVLink
   bus. After 1.5 seconds without a valid heading, it shows **Heading unavailable**
   and removes the position dot rather than silently switching orientation.
-  Heading is aircraft yaw, not course over ground or camera direction.
+  N/E/S/W rotate around the radar whenever a valid aircraft heading is
+  available. Without heading, their heading-up positions are unknown, so the
+  letters remain hidden. Heading is aircraft yaw, not course over ground or
+  camera direction.
 
 Lost, stale or disconnected data removes live target graphics. Changing the
 selected aircraft clears the previous aircraft's target before new data is
@@ -106,7 +124,7 @@ coordinate is available, rings show half and full aircraft-to-target map
 distance. They are geographic context; the runtime's range estimate remains a
 separate readout. The ring preference is saved.
 
-Range rings can also be changed in **Display options**. The details popup
+Range rings can also be changed in **DCLink options**. The details popup
 scrolls on small screens. Close it with **Close**, Escape,
 or a tap outside it. It closes on target loss, unavailable data, aircraft
 changes or leaving the target-card view. Switching layouts preserves the chosen map view
@@ -132,7 +150,10 @@ availability without starting a flight action.
 | Resize; expand the command menu; use picture-in-picture | Plots compact or hide; controls and video retain their space. |
 | Star/unstar a disabled command | Visibility changes without sending a command; the command stays disabled. |
 | Collapse Commands; restart | Cancel and applicable favorites remain visible; the full list starts collapsed. |
-| Restart or reset display settings | Preferences restore or reset to Nose, expanded, north-up, rings off, no favorites. |
+| Enable video favorites; try each position preset | Only starred commands appear; expanded menus and joystick controls stay clear. |
+| Disable video favorites or remove all applicable stars | No video command panel or dropdown; the single Options gear stays available. |
+| Star Cancel; switch to video | Cancel appears among video favorites only while starred. |
+| Restart or reset display settings | Preferences restore or reset to Nose, expanded, north-up, rings off, no favorites, video favorites off, top right. |
 | Review copter and plane menus | Cancel, Hold/Loiter, Mission where supported, Follow/Intercept and Target Loiter retain their labels and availability. |
 
 Local builds, static checks and simulated UI review do not establish hardware

@@ -27,6 +27,8 @@ QtObject {
         dclinkMapRangeRings: false,
         dclinkRadarHeadingUp: false,
         dclinkFavoriteCommands: [],
+        dclinkVideoCommandsVisible: false,
+        dclinkVideoCommandsPosition: "Top-right",
         compassType: "horizontal",
         compassSize: 100,
         networkIPAdress: "192.168.4.60",
@@ -144,6 +146,8 @@ QtObject {
         property alias dclinkMapRangeRings: root.dclinkMapRangeRings
         property alias dclinkRadarHeadingUp: root.dclinkRadarHeadingUp
         property alias dclinkFavoriteCommands: root.dclinkFavoriteCommands
+        property alias dclinkVideoCommandsVisible: root.dclinkVideoCommandsVisible
+        property alias dclinkVideoCommandsPosition: root.dclinkVideoCommandsPosition
         property alias compassType: root.compassType
         property alias compassSize: root.compassSize
         property alias controlPanelPosition: root.controlPanelPosition
@@ -540,6 +544,8 @@ QtObject {
     property bool dclinkMapRangeRings: false
     property bool dclinkRadarHeadingUp: false
     property var dclinkFavoriteCommands: []
+    property bool dclinkVideoCommandsVisible: false
+    property string dclinkVideoCommandsPosition: "Top-right"
     property string compassType: "horizontal"
     property int compassSize: 100
 

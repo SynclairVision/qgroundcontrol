@@ -8,8 +8,9 @@ Item {
     id: root
 
     required property var client
+    property string layoutWarning: ""
     readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.25
-    readonly property real minimumWidth: ScreenTools.defaultFontPixelWidth * 28
+    readonly property real minimumWidth: ScreenTools.defaultFontPixelWidth * 28 + _rowHeight + margin * 2
     readonly property real _rowHeight: ScreenTools.defaultFontPixelHeight * 1.5
     readonly property var _target: client ? client.targetView : ({})
     readonly property bool _connected: !!client && client.connected === true
@@ -37,14 +38,17 @@ Item {
     }
     readonly property bool _navigationWarning: _connected && !client.navigationHealthy
     readonly property string _alertText: [_commandAlert,
-        _navigationWarning ? client.navigationText : ""].filter((text) => text.length > 0).join(" · ")
+        _navigationWarning ? client.navigationText : ""]
+        .filter((text) => text.length > 0).join(" · ")
     readonly property bool _warning: _navigationWarning || (!!client && (client.commandOutcomeUnknown
         || client.commandStateText.length > 0))
 
     height: implicitHeight
     implicitHeight: content.implicitHeight + margin * 2
     implicitWidth: connectionIndicator.implicitWidth + commandLabel.implicitWidth + controlLabel.implicitWidth
-        + targetLabel.implicitWidth + margin * 8
+        + targetLabel.implicitWidth + optionsButton.width + margin * 10
+
+    signal optionsRequested()
 
     function openDetails() {
         detailsPopup.open()
@@ -78,7 +82,7 @@ Item {
             id: statusFields
 
             spacing: root.margin * 2
-            width: parent.width
+            width: Math.max(0, parent.width - optionsButton.width - root.margin * 2)
 
             RowLayout {
                 id: connectionIndicator
@@ -163,6 +167,34 @@ Item {
             width: parent.width
             wrapMode: Text.Wrap
         }
+    }
+
+    SVDCLinkButton {
+        id: optionsButton
+
+        Accessible.name: qsTr("DCLink options")
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: root.margin
+        width: root._rowHeight
+        height: root._rowHeight
+        topPadding: 0
+        bottomPadding: 0
+        leftPadding: 0
+        rightPadding: 0
+        iconSource: "qrc:/qmlimages/settings_general.svg"
+        description: root.layoutWarning.length > 0
+            ? qsTr("DCLink options · %1").arg(root.layoutWarning) : qsTr("DCLink options")
+
+        QGCLabel {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            text: "!"
+            color: palette.warningText
+            font.bold: true
+            visible: root.layoutWarning.length > 0
+        }
+        onClicked: root.optionsRequested()
     }
 
     TextMetrics {

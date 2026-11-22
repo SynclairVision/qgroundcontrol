@@ -20,7 +20,6 @@ Item {
 
     signal viewPreferenceChanged(bool radarSelected, bool expanded)
     signal rangeRingsRequested(bool enabled)
-    signal optionsRequested()
 
     function openDetails() {
         if (!_target || !_target.available || !_target.present)
@@ -54,7 +53,7 @@ Item {
         spacing: root.margin
         width: root.width
 
-        QGCButton {
+        SVDCLinkButton {
             Accessible.description: qsTr("Select nose view; select again to show or hide its plot")
             Accessible.name: qsTr("Nose view")
             Layout.fillWidth: true
@@ -71,7 +70,7 @@ Item {
             }
         }
 
-        QGCButton {
+        SVDCLinkButton {
             Accessible.description: qsTr("Select target radar; select again to show or hide its plot")
             Accessible.name: qsTr("Target radar")
             Layout.fillWidth: true
@@ -121,19 +120,11 @@ Item {
         width: root.width
         spacing: root.margin
 
-        QGCButton {
+        SVDCLinkButton {
             Layout.fillWidth: true
             text: qsTr("Details")
             enabled: !!root._target && root._target.available === true && root._target.present === true
             onClicked: root.openDetails()
-        }
-
-        QGCButton {
-            Accessible.name: qsTr("Display options")
-            text: "⋯"
-            onClicked: root.optionsRequested()
-            ToolTip.visible: hovered
-            ToolTip.text: qsTr("Display options")
         }
     }
 
@@ -187,7 +178,7 @@ Item {
                     onRangeRingsRequested: (enabled) => root.rangeRingsRequested(enabled)
                 }
 
-                QGCButton {
+                SVDCLinkButton {
                     Layout.fillWidth: true
                     text: qsTr("Close")
                     onClicked: detailsPopup.close()

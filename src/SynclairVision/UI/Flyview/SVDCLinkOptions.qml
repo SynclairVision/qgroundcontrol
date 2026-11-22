@@ -10,10 +10,15 @@ Popup {
     property bool headingUp: false
     property bool rangeRings: false
     property bool mapAvailable: false
+    property bool videoCommandsVisible: false
+    property string videoCommandsPosition: "Top-right"
+    property string placementWarning: ""
     readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.5
 
     signal headingUpRequested(bool enabled)
     signal rangeRingsRequested(bool enabled)
+    signal videoCommandsVisibleRequested(bool enabled)
+    signal videoCommandsPositionRequested(string position)
 
     parent: Overlay.overlay
     width: Math.min(ScreenTools.defaultFontPixelHeight * 21, parent ? parent.width - margin * 2 : 0)
@@ -48,7 +53,7 @@ Popup {
 
             QGCLabel {
                 Layout.fillWidth: true
-                text: qsTr("Display options")
+                text: qsTr("DCLink options")
                 font.bold: true
             }
 
@@ -80,7 +85,43 @@ Popup {
                 font.pointSize: ScreenTools.smallFontPointSize
             }
 
-            QGCButton {
+            QGCCheckBox {
+                Layout.fillWidth: true
+                text: qsTr("Show favorites on video")
+                checked: root.videoCommandsVisible
+                onClicked: root.videoCommandsVisibleRequested(checked)
+            }
+
+            QGCLabel {
+                Layout.fillWidth: true
+                text: qsTr("Video favorites position")
+            }
+
+            QGCComboBox {
+                readonly property var positions: ["Top-right", "Right-center", "Bottom-right"]
+
+                Layout.fillWidth: true
+                model: [qsTr("Top right"), qsTr("Right center"), qsTr("Bottom right")]
+                currentIndex: Math.max(0, positions.indexOf(root.videoCommandsPosition))
+                enabled: root.videoCommandsVisible
+                onActivated: (index) => root.videoCommandsPositionRequested(positions[index])
+            }
+
+            QGCLabel {
+                Layout.fillWidth: true
+                text: qsTr("Choose favorites in the map command menu. Positions adjust around existing controls.")
+                wrapMode: Text.Wrap
+                font.pointSize: ScreenTools.smallFontPointSize
+            }
+
+            QGCLabel {
+                Layout.fillWidth: true
+                text: root.placementWarning
+                visible: text.length > 0
+                wrapMode: Text.Wrap
+            }
+
+            SVDCLinkButton {
                 Layout.fillWidth: true
                 text: qsTr("Close")
                 onClicked: root.close()

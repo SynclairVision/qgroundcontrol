@@ -126,11 +126,28 @@ The [operator guide](../../../docs/en/qgc-user-guide/fly_view/dclink.md)
 contains connection prerequisites, display semantics and a manual acceptance
 matrix. Display preferences use the existing `SVSettings` persistence/reset
 path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded`,
-`dclinkMapRangeRings`, `dclinkRadarHeadingUp` and `dclinkFavoriteCommands`.
+`dclinkMapRangeRings`, `dclinkRadarHeadingUp`, `dclinkFavoriteCommands`,
+`dclinkVideoCommandsVisible` and `dclinkVideoCommandsPosition`.
 Favorites contain stable command identifiers; Cancel remains fixed and only
 applicable aircraft actions are shown. The command list is collapsed initially.
+Map Cancel stays fixed and can be starred for the optional favorites-only video
+panel. Video favorites start hidden and have no dropdown or editing controls.
+The only DCLink Options entry is in the status strip.
 Changing favorites does not mutate runtime state. Automatic compact layout does not overwrite the user's
 manual expansion preference.
+
+Video position presets use `SVFlyView.commandAvoidanceRects`, mapped into the
+custom layer, to find clear vertical space along the right side. The exports
+include expanded menu bounds, the visible control panel, recording information
+and notifications. A full-height fit is preferred; longer lists scroll in the
+available interval. Narrow areas also require enough width for usable labels.
+With no room for one button, the panel hides with an Options warning badge and
+tooltip/detail text. The notice does not change strip height, preventing a
+feedback loop through HUD layout. The QGC multi-vehicle panel and map inset
+are additional obstacles. The DigiView settings drawer blocks video favorites while open.
+Per-camera compass/attitude and tracking-flag bounds are exported through the
+camera layer, including combined-compass overflow, and merged while video is
+visible. Hover tooltips are excluded so commands do not jump around the pointer.
 
 The standard QtLocation map attaches one `SVDCLinkTargetMapItems` group through
 the custom Fly View layer. The group reparents into the map before attachment,

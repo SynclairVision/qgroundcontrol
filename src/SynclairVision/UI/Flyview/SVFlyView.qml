@@ -19,6 +19,23 @@ Item {
     property alias videoContentAreaItem: videoContentArea
     readonly property rect commandToolsRect: Qt.rect(widgetLayer.x, widgetLayer.y,
                                                     widgetLayer.width, widgetLayer.height)
+    readonly property bool commandPlacementBlocked: widgetLayer.commandPlacementBlocked
+    // Export occupied controls in video coordinates, including aligned HUD offsets.
+    readonly property var commandAvoidanceRects: {
+        const rectangles = widgetLayer.commandAvoidanceRects.map((rect) =>
+            Qt.rect(widgetLayer.x + rect.x, widgetLayer.y + rect.y, rect.width, rect.height))
+        if (videoContentArea.visible) {
+            for (const cameraLayer of cameraLayerRepeater.cameraLayers) {
+                if (!cameraLayer || !cameraLayer.visible)
+                    continue
+                for (const rect of cameraLayer.commandAvoidanceRects) {
+                    rectangles.push(Qt.rect(videoContentArea.x + cameraLayer.x + rect.x,
+                                            videoContentArea.y + cameraLayer.y + rect.y, rect.width, rect.height))
+                }
+            }
+        }
+        return rectangles
+    }
     // Once connected, the remote VIDEO_OUTPUT_PARAMETERS state is authoritative.
     // The settings value is only a draft used while editing or awaiting refresh.
     property var detectionPosition: SVState.effectiveAiDetectionOverlayPosition
@@ -263,6 +280,10 @@ Item {
         Repeater {
             id: cameraLayerRepeater
             model: root.digiviewCameraViews
+            property var cameraLayers: []
+
+            onItemAdded: (_index, item) => cameraLayers = cameraLayers.concat([item])
+            onItemRemoved: (_index, item) => cameraLayers = cameraLayers.filter((layer) => layer !== item)
 
             delegate: SVCameraLayer {
                 required property var modelData

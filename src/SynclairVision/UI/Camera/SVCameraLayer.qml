@@ -29,6 +29,9 @@ Item {
         && SVState.cursorTrackingSessionSlot === cameraSlot
     readonly property bool cursorTrackingOtherCamera: SVState.cursorTrackingSessionActive
         && !cursorTrackingSessionCamera
+    readonly property var commandAvoidanceRects: widgetLayer.visible
+        ? widgetLayer.commandAvoidanceRects.map((rect) =>
+            Qt.rect(widgetLayer.x + rect.x, widgetLayer.y + rect.y, rect.width, rect.height)) : []
 
     signal cursorTargetSelected(int cameraSlot, real normalizedX, real normalizedY)
 
