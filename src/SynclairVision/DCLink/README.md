@@ -1,4 +1,10 @@
-# Shared DCLink target model
+# DCLink developer notes
+
+This file describes the QGC data model and Fly View integration. Pilot setup,
+controls, display behavior and manual review scenarios belong in the
+[operator guide](../../../docs/en/qgc-user-guide/fly_view/dclink.md).
+
+## Shared target model
 
 `SVBackend.dclink.targetView` is the single read-only QML snapshot for target
 presentation. The map and current pilot actions retain their existing behavior.
@@ -52,101 +58,20 @@ clears availability despite other traffic, and switching aircraft or disconnecti
 clears the snapshot. Confirm that the existing pilot menu and map interaction
 remain unchanged. No automated QGC test targets are part of this workflow.
 
-## Nose view
+## Fly View integration
 
-With the SynclairVision overlay enabled and the map as the main view, the nose
-card appears on the left, with the command panel on the right. The map remains visible and
-interactive. Select Nose to open the nose view, or select it again to collapse
-the plot. Select Radar to switch the same card to target radar. Opening the
-command menu takes priority: when remaining space is limited, the card keeps
-its angle readout and status in compact form; it hides if even that cannot fit.
-The video inset and bottom controls retain their reserved space.
-
-The plot shows aircraft-relative direction over ±60 degrees on each axis.
-Right is positive azimuth; up is positive elevation. The centre cross marks
-the aircraft nose. A dot marks a fresh target inside the displayed span.
-An arrow at the edge means outside the displayed span or behind the aircraft,
-with an explicit status label distinguishing those conditions. Numerical
-readouts retain the full angles. Direction alone does not establish range.
-
-Each axis is independent. With only azimuth, a vertical band shows the known
-left/right direction; with only elevation, a horizontal band shows the known
-up/down direction. The missing readout is a dash. The view never substitutes
-zero for missing data or places a rear target at the centre. Missing, expired
-or disconnected target data removes the target marker and shows its current
-availability state. GPS, position and range are not required.
-
-The card consumes only `targetView`; it does not select targets, send commands
-or change map/video modes. Existing flight controls remain in the DCLink menu.
-
-For manual visual review, cover centred and off-centre targets without range
-or GPS, each missing axis, behind/outside directions, loss of target data,
-light/dark themes, collapse/expand, menu expansion, and constrained viewport
-height. Verify that map gestures and the existing flight controls still work.
-
-## Target radar
-
-Select Radar on the target card to view the shared target's horizontal
-position relative to the aircraft. Nose and Radar share one card, so only one
-plot occupies map space. Select the active view again to collapse or expand
-its plot. The command menu retains priority; compact readouts remain when the
-plot cannot fit, and the card hides if even those readouts cannot fit. Space
-reserved for the video inset and bottom controls is unchanged.
-
-The radar defaults to north-up: north at the top, east to the right, with the
-aircraft at the centre. It uses the shared `relativeNorthM`/`relativeEastM` pair;
-both must be fresh and finite. North-up needs no GPS coordinates or heading. It
-does not combine nose azimuth with range or independently timed aircraft
-position to invent a relative offset from angular-only observations. Zero offsets
-are valid and put the target at the centre.
-
-Display options also offers heading-up. `aircraftHeadingDeg` accepts only
-ATTITUDE yaw or GLOBAL_POSITION_INT heading from the autopilot component of
-the single matching aircraft on the operator bus. It is unavailable after
-1.5 seconds without a valid message, or on session/aircraft ambiguity or loss.
-This is local receipt age, not a guarantee against delayed router replay.
-Heading-up rotates the existing north/east offsets; it does not reconstruct
-target position from angles/range. Invalid heading hides the dot and compass
-and explicitly reports heading unavailable, preserving the requested orientation.
-
-Offset is the horizontal distance calculated from the same north/east pair
-used for plotting. The scale fits automatically using 1/2/5 distance steps,
-with a minimum outer radius of 50 metres. It changes when the target moves
-beyond 90% or inside 20% of the current radius, keeping small movements from
-constantly changing scale. The outer radius is labelled; the inner ring is
-half that radius. Position loss resets the scale. Distances are shown in
-metres or kilometres.
-
-With range alone, the card shows an estimated-range readout and no target dot.
-With angles alone, it directs the operator to Nose. A missing coordinate,
-invalid value, lost target or stale/disconnected snapshot removes the dot.
-Reported range and positions remain runtime observations/estimates, not a
-claim of direct range measurement. Radar viewing never selects a target,
-starts a command, changes map/video mode or changes flight control authority.
-
-For manual visual review, cover all cardinal directions, zero offsets,
-metre/kilometre scaling, small movements near scale thresholds, partial or
-nonfinite coordinates, angular-only and range-only data, target loss and
-reconnect, view switching and collapse/expand, constrained height, and both
-colour themes. Verify that the existing map gestures and pilot menu remain
-available. Live telemetry and integrated map interaction require validation
-in the complete application.
-
-## Integration and operator review
-
-The [operator guide](../../../docs/en/qgc-user-guide/fly_view/dclink.md)
-contains connection prerequisites, display semantics and a manual acceptance
-matrix. Display preferences use the existing `SVSettings` persistence/reset
+Display preferences use the existing `SVSettings` persistence/reset
 path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded`,
 `dclinkMapRangeRings`, `dclinkRadarHeadingUp`, `dclinkFavoriteCommands`,
 `dclinkVideoCommandsVisible` and `dclinkVideoCommandsPosition`.
-Favorites contain stable command identifiers; Cancel remains fixed and the
+Favorites contain stable command identifiers. Cancel uses the same command-row
+and favorite filtering as every other command. New/reset settings favorite
+`cancel`; persisted favorite lists, including empty lists, are retained. The
 command list shows the complete advertised DCLink catalog in identifier order,
 including without an aircraft. Listing and favoriting are independent of command
 execution: aircraft checks and the existing pilot-command set still apply.
 Commands outside that set remain visible but disabled. The list is collapsed initially.
-Map Cancel stays fixed and can be starred for the optional favorites-only video
-panel. Video favorites start hidden and have no dropdown or editing controls.
+Video favorites start hidden and have no dropdown or editing controls.
 The only DCLink Options entry is in the status strip.
 Changing favorites does not mutate runtime state. Automatic compact layout does not overwrite the user's
 manual expansion preference.

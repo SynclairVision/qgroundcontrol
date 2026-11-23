@@ -26,7 +26,7 @@ QtObject {
         dclinkTargetPlotExpanded: true,
         dclinkMapRangeRings: false,
         dclinkRadarHeadingUp: false,
-        dclinkFavoriteCommands: [],
+        dclinkFavoriteCommands: ["cancel"],
         dclinkVideoCommandsVisible: false,
         dclinkVideoCommandsPosition: "Top-right",
         compassType: "horizontal",
@@ -526,6 +526,10 @@ QtObject {
         onNetworkProfilesChanged: syncSelectedNetworkProfileState()
         onNetworkSelectedProfileIndexChanged: syncSelectedNetworkProfileState()
         Component.onCompleted: {
+            // Preserve saved empty lists; only a missing setting gets the default favorites.
+            if (persistedSettings.value("dclinkFavoriteCommands", "__missing__") === "__missing__") {
+                dclinkFavoriteCommands = resetDefaults.dclinkFavoriteCommands.slice()
+            }
             setNetworkProfiles(networkProfiles ? networkProfiles.slice() : [], networkSelectedProfileIndex)
             migrateShortcutsIfNeeded()
         }

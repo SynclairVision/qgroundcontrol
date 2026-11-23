@@ -38,12 +38,13 @@ compatible runtime. Target traffic cannot keep a stale DCLink connection online.
 
 ## Commands and favorites
 
-The **Commands** panel is on the right in the map layout. **Cancel** stays
-visible there. Expand **Commands** to see every command advertised by DCLink,
+The **Commands** panel is on the right in the map layout. Expand **Commands**
+to see every command advertised by DCLink,
 including while no aircraft is connected. Select a star to keep a command visible
 when the list is collapsed. Select its star again to remove it from favorites.
-Cancel also has a star for choosing
-whether it appears among video favorites. Changing a favorite never starts a
+**Cancel** is a favorite by default and follows these same rules: unstar it to
+hide it from the collapsed panel and video favorites, then expand **Commands**
+to find or favorite it again. Changing a favorite never starts a
 command. Each command retains its existing connection, aircraft and availability
 checks. Cancel is a DCLink command cancellation, not an aircraft emergency-stop
 or disarm control.
@@ -52,9 +53,10 @@ Listing and favoriting commands does not require a vehicle. Starting commands
 retains the aircraft connection checks and QGC's current pilot-command set;
 other advertised commands are listed but disabled.
 
-Favorites start empty and are saved using command identifiers, so a copter's
-favorites do not become different plane commands. Unavailable actions remain
-disabled, and the panel scrolls when needed. The list starts collapsed.
+New and reset settings start with only Cancel favorited. Existing saved favorites
+are preserved, including an empty list. Favorites use command identifiers, so a
+copter's favorites do not become different plane commands. Unavailable actions
+remain disabled, and the panel scrolls when needed. The list starts collapsed.
 
 The single gear at the right end of the status strip opens **DCLink options**.
 It remains available when video commands are hidden. **Show favorites on video**
@@ -165,11 +167,11 @@ availability without starting a flight action.
 | Switch map/video, then return | Target and enabled rings remain on the small map; no duplicate items; layout choice is retained. |
 | Resize; expand the command menu; use picture-in-picture | Plots compact or hide; controls and video retain their space. |
 | Star/unstar a disabled command | Visibility changes without sending a command; the command stays disabled. |
-| Collapse Commands; restart | Cancel and applicable favorites remain visible; the full list starts collapsed. |
+| Collapse Commands; restart | Saved favorites remain visible; the full list starts collapsed. |
 | Enable video favorites; try each position preset | Only starred commands appear; expanded menus and joystick controls stay clear. |
 | Disable video favorites or remove all applicable stars | No video command panel or dropdown; the single Options gear stays available. |
-| Star Cancel; switch to video | Cancel appears among video favorites only while starred. |
-| Restart or reset display settings | Preferences restore or reset to Nose, expanded, north-up, rings off, no favorites, video favorites off, top right. |
+| Unstar Cancel, collapse Commands, then restart | Cancel stays unstarred and hidden from the collapsed panel and video favorites; expanding Commands still lists it. |
+| Reset display settings | Nose, expanded, north-up, rings off, only Cancel favorited, video favorites off, top right. |
 | Review copter and plane menus | Cancel, Hold/Loiter, Mission where supported, Follow/Intercept and Target Loiter retain their labels and availability. |
 
 Local builds, static checks and simulated UI review do not establish hardware

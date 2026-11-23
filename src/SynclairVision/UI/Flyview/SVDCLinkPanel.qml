@@ -32,11 +32,8 @@ Item {
     readonly property string _actionSnapshot: JSON.stringify(client && client.actions ? client.actions : [])
     readonly property var _actions: JSON.parse(_actionSnapshot)
     readonly property var _favoriteIds: normalizedFavorites(favoriteCommands)
-    readonly property var _cancel: _actions.find(action => action.command === "cancel") || null
-    readonly property var _favorites: _actions.filter(action => (favoritesOnly || action.command !== "cancel")
-        && isFavorite(action.command))
-    readonly property var _otherActions: _actions.filter(action => action.command !== "cancel"
-        && !isFavorite(action.command))
+    readonly property var _favorites: _actions.filter(action => isFavorite(action.command))
+    readonly property var _otherActions: _actions.filter(action => !isFavorite(action.command))
 
     signal favoriteCommandsChangedByUser(var commands)
 
@@ -97,31 +94,6 @@ Item {
             onClicked: root.expanded = !root.expanded
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: root.margin
-
-            SVDCLinkButton {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                Accessible.description: qsTr("Cancel the current DCLink command")
-                text: root._cancel ? root._cancel.label : qsTr("Cancel")
-                enabled: !!root._cancel && root._cancel.enabled === true
-                description: root._cancel ? root._cancel.reason : ""
-                onClicked: { if (root.client) root.client.startAction("cancel") }
-            }
-
-            SVDCLinkButton {
-                Layout.preferredWidth: height
-                Accessible.name: root.isFavorite("cancel") ? qsTr("Remove Cancel from favorites")
-                    : qsTr("Favorite Cancel")
-                checkable: true
-                checked: root.isFavorite("cancel")
-                text: checked ? "★" : "☆"
-                description: checked ? qsTr("Remove favorite") : qsTr("Keep visible in video")
-                onClicked: root.toggleFavorite("cancel")
-            }
-        }
     }
 
     Flickable {
