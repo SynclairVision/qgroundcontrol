@@ -8,7 +8,8 @@ defines schema 1 and coordinate conventions.
 | Property | Meaning |
 | --- | --- |
 | `supported` | Fresh STATUS advertises the selected-target view capability. |
-| `available` | A supported correlated snapshot from the aircraft on this connection is fresh. |
+| `available` | A supported correlated snapshot from DCLink is fresh. |
+| `vehicleBound` | Snapshot matches a fresh unambiguous aircraft heartbeat; false for camera-only data. |
 | `present` | The selected target has remaining validity. |
 | `targetId`, `source` | Optional selected track/source metadata; null when no fresh target. |
 | `vehicleSystemId`, `vehicleComponentId` | Aircraft owning the snapshot; null when unavailable. |
@@ -25,6 +26,17 @@ A null geometry field means unavailable. Zero is a valid value. Consumers must
 check `available`, `present` and each required geometry field. An angular-only
 target can populate the nose display but cannot create a map marker or a radar
 point requiring range. Displaying a target never starts a flight action.
+
+Read-only polling is independent of the pilot-command aircraft-type gate.
+With no selected aircraft or observed autopilot, camera-only snapshots can
+carry an unknown or reported aircraft identity. QGC exposes no bound aircraft,
+control ownership, driving flag or relative position until identity is matched.
+Direction, independently valid target coordinates and range keep their wire
+validity. Query context changes clear cached data and in-flight requests.
+Source/request/schema/freshness/sequence checks remain mandatory. Selection
+or ambiguity never falls back to an unbound target. Radar can show relative
+bearing as a labelled edge arrow without constructing position from angles
+and range; heading-up needs no compass heading for this direction-only cue.
 
 Polling uses its own non-reused 32-bit read IDs at up to 4 Hz. Only a matching
 STATUS establishes service liveness. Target responses require matching DCLink

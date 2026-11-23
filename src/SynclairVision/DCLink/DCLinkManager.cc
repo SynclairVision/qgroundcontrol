@@ -677,6 +677,7 @@ bool DCLinkManager::startAction(const QString& command)
 
 void DCLinkManager::_clearTarget()
 {
+    _targetContextId = -1;
     _lastTarget.invalidate();
     _targetQueryAge.invalidate();
     _targetRequestId = 0;
@@ -685,14 +686,30 @@ void DCLinkManager::_clearTarget()
     _targetData.clear();
 }
 
+std::optional<int> DCLinkManager::_targetAircraftId() const
+{
+    // A camera-only connection can supply read-only direction, but cannot establish aircraft authority.
+    if (_observations.isEmpty()) {
+        return _selectedVehicleId == 0 ? std::optional<int>(0) : std::nullopt;
+    }
+    if (_observations.size() != 1)
+        return std::nullopt;
+    const auto aircraft = _observations.constBegin();
+    if (aircraft->age.elapsed() > VEHICLE_TIMEOUT_MS ||
+        (_selectedVehicleId != 0 && _selectedVehicleId != aircraft.key())) {
+        return std::nullopt;
+    }
+    return aircraft.key();
+}
+
 void DCLinkManager::_pollTarget()
 {
-    if (!_transportReady() || !connected() || !_vehicleReason.isEmpty() ||
-        !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)) {
+    const auto aircraft = _targetAircraftId();
+    if (!_transportReady() || !connected() || !aircraft || !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)) {
         _clearTarget();
         return;
     }
-    if (_targetVehicleId != 0 && _targetVehicleId != _observations.constBegin().key()) {
+    if (_targetContextId != *aircraft) {
         _clearTarget();
     }
     if (_targetRequestId != 0) {
@@ -712,6 +729,7 @@ void DCLinkManager::_pollTarget()
     mavlink_msg_dclink_target_view_encode(_digiview->senderSystemId(), _digiview->senderComponentId(), &message,
                                           &payload);
     if (_digiview->connection()->sendMessage(message)) {
+        _targetContextId = *aircraft;
         _targetRequestId = payload.request_id;
         _targetQueryAge.start();
     }
@@ -725,16 +743,21 @@ void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
         return;
     }
     _updateVehicle();
+    const auto aircraft = _targetAircraftId();
+    const bool identityMatches = aircraft && _targetContextId == *aircraft &&
+                                 (*aircraft == 0 ? (target.vehicle_component_id == MAV_COMP_ID_AUTOPILOT1 ||
+                                                    (target.vehicle_system_id == 0 && target.vehicle_component_id == 0))
+                                                 : (target.vehicle_system_id == *aircraft &&
+                                                    target.vehicle_component_id == MAV_COMP_ID_AUTOPILOT1));
     const auto id = wireText(target.target_id);
     const auto source = wireText(target.target_source);
     const auto valid = [&target](quint32 flag, double value, double minimum, double maximum) {
         return !(target.flags & flag) || (std::isfinite(value) && value >= minimum && value <= maximum);
     };
-    if (!connected() || !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW) || !_vehicleReason.isEmpty() ||
+    if (!connected() || !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW) || !identityMatches ||
         target.schema_version != 1 || target.boot_id == 0 || !id || !source ||
-        target.vehicle_system_id != _observations.constBegin().key() ||
-        target.vehicle_component_id != MAV_COMP_ID_AUTOPILOT1 || target.control_owner > DCLINK_CONTROL_OWNER_DCLINK ||
-        target.valid_for_ms > 3000 || (target.flags & ~quint32(511)) ||
+        target.control_owner > DCLINK_CONTROL_OWNER_DCLINK || target.valid_for_ms > 3000 ||
+        (target.flags & ~quint32(511)) ||
         ((target.flags & ~quint32(DCLINK_TARGET_VIEW_FLAGS_PRESENT)) &&
          !(target.flags & DCLINK_TARGET_VIEW_FLAGS_PRESENT)) ||
         ((target.flags & DCLINK_TARGET_VIEW_FLAGS_BEHIND) && !(target.flags & DCLINK_TARGET_VIEW_FLAGS_AZIMUTH)) ||
@@ -787,21 +810,28 @@ void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
 
 QVariantMap DCLinkManager::targetView() const
 {
-    const bool available = _transportReady() && connected() && _vehicleReason.isEmpty() && _observations.size() == 1 &&
-                           _targetVehicleId == _observations.constBegin().key() && _lastTarget.isValid() &&
+    const auto aircraft = _targetAircraftId();
+    const bool bound = aircraft && *aircraft > 0;
+    const bool available = _transportReady() && connected() && aircraft && _targetContextId == *aircraft &&
+                           (!bound || _targetVehicleId == *aircraft) && _lastTarget.isValid() &&
                            _lastTarget.elapsed() < 1000;
     const auto elapsed = available ? _lastTarget.elapsed() : 0;
-    const quint32 flags = available && elapsed < _targetRemainingMs ? _targetFlags : 0;
+    quint32 flags = available && elapsed < _targetRemainingMs ? _targetFlags : 0;
+    if (!bound) {
+        flags &= ~quint32(DCLINK_TARGET_VIEW_FLAGS_DRIVING | DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION);
+    }
     QVariantMap view{
         {QStringLiteral("supported"), connected() && bool(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)},
         {QStringLiteral("available"), available},
+        {QStringLiteral("vehicleBound"), available && bound},
         {QStringLiteral("present"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_PRESENT)},
         {QStringLiteral("behind"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_BEHIND)},
         {QStringLiteral("driving"), bool(flags & DCLINK_TARGET_VIEW_FLAGS_DRIVING)},
-        {QStringLiteral("controlOwner"), available ? _targetData.value(QStringLiteral("controlOwner")) : QVariant(0)},
-        {QStringLiteral("vehicleSystemId"), available ? QVariant(_targetVehicleId) : QVariant()},
+        {QStringLiteral("controlOwner"),
+         available && bound ? _targetData.value(QStringLiteral("controlOwner")) : QVariant(0)},
+        {QStringLiteral("vehicleSystemId"), available && bound ? QVariant(_targetVehicleId) : QVariant()},
         {QStringLiteral("vehicleComponentId"),
-         available ? _targetData.value(QStringLiteral("vehicleComponentId")) : QVariant()},
+         available && bound ? _targetData.value(QStringLiteral("vehicleComponentId")) : QVariant()},
         {QStringLiteral("targetId"), flags ? _targetData.value(QStringLiteral("targetId")) : QVariant()},
         {QStringLiteral("source"), flags ? _targetData.value(QStringLiteral("source")) : QVariant()},
         {QStringLiteral("rangeSource"),

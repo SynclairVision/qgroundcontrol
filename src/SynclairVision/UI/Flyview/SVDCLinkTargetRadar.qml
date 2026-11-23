@@ -14,6 +14,11 @@ Item {
     readonly property bool _headingValid: Number.isFinite(aircraftHeadingDeg)
         && aircraftHeadingDeg >= 0 && aircraftHeadingDeg <= 360
     readonly property bool _orientationAvailable: !headingUp || _headingValid
+    readonly property bool _positionVisible: _positionValid && _orientationAvailable
+    readonly property bool _azimuthValid: _present && typeof _target.azimuthDeg === "number"
+        && Number.isFinite(_target.azimuthDeg) && Math.abs(_target.azimuthDeg) <= 180
+    readonly property bool _directionOnly: !_positionVisible && _azimuthValid && (headingUp || _headingValid)
+    readonly property real _bearingDeg: _directionOnly ? _target.azimuthDeg + (headingUp ? 0 : aircraftHeadingDeg) : 0
     readonly property real _rotationDeg: headingUp && _headingValid ? aircraftHeadingDeg : 0
     readonly property bool _positionValid: _present && finiteOffset(_target.relativeNorthM)
         && finiteOffset(_target.relativeEastM)
@@ -26,6 +31,8 @@ Item {
             return client && client.connected ? qsTr("Target data unavailable") : qsTr("DCLink offline");
         if (!_present)
             return qsTr("No target");
+        if (_directionOnly)
+            return qsTr("Direction only · position unavailable");
         if (!root._orientationAvailable)
             return qsTr("Heading unavailable");
         if (_positionValid)
@@ -103,6 +110,11 @@ Item {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
             text: {
+                if (root._directionOnly) {
+                    const bearing = qsTr("AZ %1°").arg(root._target.azimuthDeg.toFixed(1));
+                    return root._rangeValid ? qsTr("%1 · Est. range %2").arg(bearing)
+                        .arg(root.distanceText(root._target.horizontalRangeM)) : bearing;
+                }
                 if (root._positionValid)
                     return root.distanceText(root._distanceM);
                 if (root._rangeValid)
@@ -161,6 +173,7 @@ Item {
                     height: width
                     radius: width / 2
                     width: plot.radius * (index + 1)
+                    visible: !root._directionOnly || index === 1
                 }
             }
 
@@ -209,10 +222,25 @@ Item {
                 color: palette.brandPrimary
                 height: width
                 radius: width / 2
-                visible: root._positionValid && root._orientationAvailable
+                visible: root._positionVisible
                 width: ScreenTools.defaultFontPixelHeight * 0.8
                 x: plot.targetX - width / 2
                 y: plot.targetY - height / 2
+            }
+
+            QGCLabel {
+                Accessible.name: qsTr("Target bearing only; position unavailable")
+                readonly property real bearingRadians: root._bearingDeg * Math.PI / 180
+
+                text: "▲"
+                color: palette.brandPrimary
+                style: Text.Outline
+                styleColor: palette.text
+                font.pointSize: ScreenTools.largeFontPointSize
+                rotation: root._bearingDeg
+                visible: root._directionOnly
+                x: plot.width / 2 + Math.sin(bearingRadians) * plot.radius - width / 2
+                y: plot.height / 2 - Math.cos(bearingRadians) * plot.radius - height / 2
             }
         }
 
@@ -220,10 +248,12 @@ Item {
             id: legend
 
             Layout.fillWidth: true
-            Accessible.name: qsTr("Outer ring %1").arg(root.distanceText(root._radiusM))
+            Accessible.name: text
             font.pointSize: ScreenTools.smallFontPointSize
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("%1 · %2")
+            text: root._directionOnly
+                ? (root.headingUp ? qsTr("Forward ↑ · bearing only") : qsTr("N ↑ · bearing only"))
+                : qsTr("%1 · %2")
                 .arg(root.headingUp ? (root._headingValid ? qsTr("HDG ↑") : qsTr("HDG —")) : qsTr("N ↑"))
                 .arg(root.distanceText(root._radiusM))
             visible: root.plotVisible

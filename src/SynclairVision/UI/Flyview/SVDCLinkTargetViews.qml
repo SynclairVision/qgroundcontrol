@@ -15,7 +15,7 @@ Item {
     property bool mapAvailable: false
     property bool headingUp: false
     property real aircraftHeadingDeg: NaN
-    property int _detailsVehicleId: 0
+    property var _detailsVehicleId: null
     readonly property var _target: client ? client.targetView : ({})
 
     signal viewPreferenceChanged(bool radarSelected, bool expanded)

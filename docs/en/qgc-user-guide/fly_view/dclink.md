@@ -15,6 +15,11 @@ identify one aircraft.
 The runtime must advertise the selected-target view for target graphics to
 become available. A status-only peer can still supply the existing command menu.
 
+Camera-only use does not require an autopilot when no aircraft is selected.
+QGC reads DCLink's fresh target direction while control ownership remains
+Unavailable and flight commands stay disabled. Selecting an aircraft restores
+the matching-aircraft requirement; ambiguous aircraft still block target data.
+
 The compact strip shows **DCLink** with a green connection dot or a red
 disconnection dot, the current command name, reported control ownership and
 target state. Select **DCLink** to open full connection, command and navigation
@@ -88,6 +93,12 @@ menu retains priority, with scrolling where needed.
   available. Without heading, their heading-up positions are unknown, so the
   letters remain hidden. Heading is aircraft yaw, not course over ground or
   camera direction.
+
+  With bearing but no usable position, radar shows an edge arrow labelled
+  **bearing only**, without a position dot or distance scale. Heading-up uses
+  the supplied relative bearing with **Forward ↑**, even without compass
+  heading. North-up requires heading to orient a relative bearing. N/E/S/W
+  stay hidden while heading is unknown. Target loss clears the arrow.
 
 Lost, stale or disconnected data removes live target graphics. Changing the
 selected aircraft clears the previous aircraft's target before new data is

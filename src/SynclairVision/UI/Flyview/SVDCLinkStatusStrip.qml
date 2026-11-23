@@ -15,7 +15,7 @@ Item {
     readonly property var _target: client ? client.targetView : ({})
     readonly property bool _connected: !!client && client.connected === true
     readonly property string _controlText: {
-        if (!_target || !_target.available)
+        if (!_target || !_target.available || _target.vehicleBound === false)
             return qsTr("Unavailable")
         switch (_target.controlOwner) {
         case 1: return qsTr("Manual")

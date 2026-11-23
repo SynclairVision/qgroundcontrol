@@ -93,6 +93,7 @@ private:
     bool _sendStatus(quint16 requestId);
     bool _sendCommand(quint16 requestId, quint8 action, int item, const QString& command = {});
     void _pollTarget();
+    std::optional<int> _targetAircraftId() const;
     void _clearTarget();
     void _receiveTarget(const mavlink_message_t& message);
     void _tick();
@@ -126,6 +127,7 @@ private:
     quint32 _targetFlags = 0;
     int _targetRemainingMs = 0;
     int _targetVehicleId = 0;
+    int _targetContextId = -1;
     QDeadlineTimer _catalogRetry{0};
     QHash<int, Observation> _observations;
     QSet<QString> _catalogNames;
