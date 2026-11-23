@@ -400,7 +400,8 @@ QString DCLinkManager::_commandLabel(const QString& command) const
     if (command == QStringLiteral("copter/target_loiter") || command == QStringLiteral("plane/target_loiter")) {
         return tr("Target Loiter");
     }
-    return _catalogLabels.value(command, tr("Other command"));
+    const auto label = _catalogLabels.value(command);
+    return label.isEmpty() ? command : label;
 }
 
 bool DCLinkManager::connected() const
@@ -623,8 +624,11 @@ QString DCLinkManager::_actionReason(const QString& command) const
 {
     const auto reason = availabilityReason();
     if (!reason.isEmpty()) return reason;
-    if (!_pilotCommands().contains(command) || !_catalogNames.contains(command)) {
+    if (!_catalogNames.contains(command)) {
         return tr("Unavailable on the connected DCLink.");
+    }
+    if (!_pilotCommands().contains(command)) {
+        return tr("This command is not enabled in QGC.");
     }
     if (command != QStringLiteral("cancel")) {
         if (_autopilotConnection != DCLINK_AUTOPILOT_CONNECTION_CONNECTED) {
@@ -639,7 +643,9 @@ QString DCLinkManager::_actionReason(const QString& command) const
 QVariantList DCLinkManager::actions() const
 {
     QVariantList result;
-    for (const auto& command : _pilotCommands()) {
+    QStringList commands = _catalogNames.values();
+    commands.sort();
+    for (const auto& command : commands) {
         const auto reason = _actionReason(command);
         result.append(QVariantMap{{QStringLiteral("command"), command},
                                   {QStringLiteral("label"), _commandLabel(command)},

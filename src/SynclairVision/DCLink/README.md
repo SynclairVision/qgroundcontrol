@@ -140,8 +140,11 @@ matrix. Display preferences use the existing `SVSettings` persistence/reset
 path: `dclinkTargetRadarSelected`, `dclinkTargetPlotExpanded`,
 `dclinkMapRangeRings`, `dclinkRadarHeadingUp`, `dclinkFavoriteCommands`,
 `dclinkVideoCommandsVisible` and `dclinkVideoCommandsPosition`.
-Favorites contain stable command identifiers; Cancel remains fixed and only
-applicable aircraft actions are shown. The command list is collapsed initially.
+Favorites contain stable command identifiers; Cancel remains fixed and the
+command list shows the complete advertised DCLink catalog in identifier order,
+including without an aircraft. Listing and favoriting are independent of command
+execution: aircraft checks and the existing pilot-command set still apply.
+Commands outside that set remain visible but disabled. The list is collapsed initially.
 Map Cancel stays fixed and can be starred for the optional favorites-only video
 panel. Video favorites start hidden and have no dropdown or editing controls.
 The only DCLink Options entry is in the status strip.

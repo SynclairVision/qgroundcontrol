@@ -39,13 +39,18 @@ compatible runtime. Target traffic cannot keep a stale DCLink connection online.
 ## Commands and favorites
 
 The **Commands** panel is on the right in the map layout. **Cancel** stays
-visible there. Expand **Commands** to see the other existing aircraft commands;
-select a star to keep a command visible when the list is collapsed. Select its
-star again to remove it from favorites. Cancel also has a star for choosing
+visible there. Expand **Commands** to see every command advertised by DCLink,
+including while no aircraft is connected. Select a star to keep a command visible
+when the list is collapsed. Select its star again to remove it from favorites.
+Cancel also has a star for choosing
 whether it appears among video favorites. Changing a favorite never starts a
 command. Each command retains its existing connection, aircraft and availability
 checks. Cancel is a DCLink command cancellation, not an aircraft emergency-stop
 or disarm control.
+
+Listing and favoriting commands does not require a vehicle. Starting commands
+retains the aircraft connection checks and QGC's current pilot-command set;
+other advertised commands are listed but disabled.
 
 Favorites start empty and are saved using command identifiers, so a copter's
 favorites do not become different plane commands. Unavailable actions remain
@@ -53,9 +58,9 @@ disabled, and the panel scrolls when needed. The list starts collapsed.
 
 The single gear at the right end of the status strip opens **DCLink options**.
 It remains available when video commands are hidden. **Show favorites on video**
-is off initially. When enabled, video shows only applicable starred commands,
+is off initially. When enabled, video shows only starred commands in DCLink's catalog,
 with no command dropdown, editing stars or automatic Cancel button. If there
-are no applicable favorites, no command panel is shown.
+are no favorites in the current catalog, no command panel is shown.
 
 Choose **Top right**, **Right center** or **Bottom right** for video favorites.
 The preset is saved and adjusts around visible DigiView menus, the joystick,
