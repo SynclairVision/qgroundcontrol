@@ -111,7 +111,7 @@ bool DCLinkManager::_sendCommand(quint16 requestId, quint8 action, int item, con
     }
     mavlink_dclink_command_t payload{};
     const auto name = command.toUtf8();
-    if (name.size() >= static_cast<qsizetype>(sizeof(payload.name))) {
+    if (name.size() > static_cast<qsizetype>(sizeof(payload.name))) {
         return false;
     }
     payload.request_id = requestId;
@@ -376,19 +376,6 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
     emit stateChanged();
 }
 
-QStringList DCLinkManager::_pilotCommands() const
-{
-    if (_vehicleKind == VehicleKind::Plane) {
-        return {QStringLiteral("cancel"), QStringLiteral("plane/loiter"),
-                QStringLiteral("plane/target_intercept"), QStringLiteral("plane/target_loiter")};
-    }
-    if (_vehicleKind == VehicleKind::Copter) {
-        return {QStringLiteral("cancel"), QStringLiteral("copter/hold"), QStringLiteral("copter/mission"),
-                QStringLiteral("copter/target_follow"), QStringLiteral("copter/target_loiter")};
-    }
-    return {};
-}
-
 QString DCLinkManager::_commandLabel(const QString& command) const
 {
     if (command == QStringLiteral("cancel")) return tr("Cancel");
@@ -627,9 +614,10 @@ QString DCLinkManager::_actionReason(const QString& command) const
     if (!_catalogNames.contains(command)) {
         return tr("Unavailable on the connected DCLink.");
     }
-    if (!_pilotCommands().contains(command)) {
-        return tr("This command is not enabled in QGC.");
-    }
+    if (command.startsWith(QStringLiteral("copter/")) && _vehicleKind != VehicleKind::Copter)
+        return tr("This command requires a copter.");
+    if (command.startsWith(QStringLiteral("plane/")) && _vehicleKind != VehicleKind::Plane)
+        return tr("This command requires a plane.");
     if (command != QStringLiteral("cancel")) {
         if (_autopilotConnection != DCLINK_AUTOPILOT_CONNECTION_CONNECTED) {
             return tr("DCLink is not connected to the autopilot.");

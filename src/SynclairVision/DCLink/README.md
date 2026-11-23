@@ -69,8 +69,15 @@ and favorite filtering as every other command. New/reset settings favorite
 `cancel`; persisted favorite lists, including empty lists, are retained. The
 command list shows the complete advertised DCLink catalog in identifier order,
 including without an aircraft. Listing and favoriting are independent of command
-execution: aircraft checks and the existing pilot-command set still apply.
-Commands outside that set remain visible but disabled. The list is collapsed initially.
+execution: aircraft, fresh-status, catalog and transaction checks still apply.
+Every advertised command uses the same named START path. The `copter/` and
+`plane/` namespaces require the matching aircraft kind; other command-specific
+prerequisites remain with DCLink. Requests use the existing runtime configuration
+without additional command arguments. ACK reports acceptance, not completion;
+mutations are sent once and uncertain outcomes retain the reconciliation gate.
+Command identifiers may fill the full 32-byte UTF-8 name field; longer names
+are rejected without truncation.
+The list is collapsed initially.
 Video favorites start hidden and have no dropdown or editing controls.
 The only DCLink Options entry is in the status strip.
 Changing favorites does not mutate runtime state. Automatic compact layout does not overwrite the user's

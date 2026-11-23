@@ -106,7 +106,6 @@ private:
     void _catalogFailed(const QString& reason);
     QString _actionReason(const QString& command) const;
     QString _commandLabel(const QString& command) const;
-    QStringList _pilotCommands() const;
 
     DigiviewManager* const _digiview;
     int _selectedVehicleId = 0;

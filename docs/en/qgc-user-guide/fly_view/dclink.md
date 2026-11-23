@@ -49,9 +49,13 @@ command. Each command retains its existing connection, aircraft and availability
 checks. Cancel is a DCLink command cancellation, not an aircraft emergency-stop
 or disarm control.
 
-Listing and favoriting commands does not require a vehicle. Starting commands
-retains the aircraft connection checks and QGC's current pilot-command set;
-other advertised commands are listed but disabled.
+Listing and favoriting commands does not require a vehicle. Start any advertised
+command when the aircraft and DCLink connection checks pass. Copter commands
+require a copter; plane commands require a plane. Other commands use the same
+Start action, with DCLink responsible for their command-specific prerequisites.
+Commands use their existing DCLink configuration; this panel does not edit
+parameters or supply additional command arguments. Acceptance confirms the
+request, not completion of the command.
 
 New and reset settings start with only Cancel favorited. Existing saved favorites
 are preserved, including an empty list. Favorites use command identifiers, so a
@@ -172,7 +176,7 @@ availability without starting a flight action.
 | Disable video favorites or remove all applicable stars | No video command panel or dropdown; the single Options gear stays available. |
 | Unstar Cancel, collapse Commands, then restart | Cancel stays unstarred and hidden from the collapsed panel and video favorites; expanding Commands still lists it. |
 | Reset display settings | Nose, expanded, north-up, rings off, only Cancel favorited, video favorites off, top right. |
-| Review copter and plane menus | Cancel, Hold/Loiter, Mission where supported, Follow/Intercept and Target Loiter retain their labels and availability. |
+| Review copter, plane and shared commands | Advertised commands use the same Start action; mismatched copter/plane commands stay disabled with the required aircraft type shown. |
 
 Local builds, static checks and simulated UI review do not establish hardware
 or flight readiness. Complete the relevant vehicle and hardware validation
