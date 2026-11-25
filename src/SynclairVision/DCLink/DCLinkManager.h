@@ -24,23 +24,23 @@ class DCLinkManager final : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("Owned by SVBackend")
 
-    Q_PROPERTY(bool connected READ connected NOTIFY stateChanged)
-    Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
-    Q_PROPERTY(QString vehicleText READ vehicleText NOTIFY stateChanged)
-    Q_PROPERTY(QString commandText READ commandText NOTIFY stateChanged)
-    Q_PROPERTY(QString commandNameText READ commandNameText NOTIFY stateChanged)
-    Q_PROPERTY(QString commandStateText READ commandStateText NOTIFY stateChanged)
-    Q_PROPERTY(bool commandOutcomeUnknown READ commandOutcomeUnknown NOTIFY stateChanged)
-    Q_PROPERTY(bool commandPending READ commandPending NOTIFY stateChanged)
-    Q_PROPERTY(QString targetText READ targetText NOTIFY stateChanged)
-    Q_PROPERTY(QString targetStateText READ targetStateText NOTIFY stateChanged)
-    Q_PROPERTY(QString navigationText READ navigationText NOTIFY stateChanged)
-    Q_PROPERTY(bool navigationHealthy READ navigationHealthy NOTIFY stateChanged)
-    Q_PROPERTY(double aircraftHeadingDeg READ aircraftHeadingDeg NOTIFY stateChanged)
-    Q_PROPERTY(QString feedback READ feedback NOTIFY stateChanged)
-    Q_PROPERTY(QString availabilityReason READ availabilityReason NOTIFY stateChanged)
-    Q_PROPERTY(QVariantList actions READ actions NOTIFY stateChanged)
-    Q_PROPERTY(QVariantMap targetView READ targetView NOTIFY stateChanged)
+    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
+    Q_PROPERTY(QString vehicleText READ vehicleText NOTIFY vehicleTextChanged)
+    Q_PROPERTY(QString commandText READ commandText NOTIFY commandTextChanged)
+    Q_PROPERTY(QString commandNameText READ commandNameText NOTIFY commandNameTextChanged)
+    Q_PROPERTY(QString commandStateText READ commandStateText NOTIFY commandStateTextChanged)
+    Q_PROPERTY(bool commandOutcomeUnknown READ commandOutcomeUnknown NOTIFY commandOutcomeUnknownChanged)
+    Q_PROPERTY(bool commandPending READ commandPending NOTIFY commandPendingChanged)
+    Q_PROPERTY(QString targetText READ targetText NOTIFY targetTextChanged)
+    Q_PROPERTY(QString targetStateText READ targetStateText NOTIFY targetStateTextChanged)
+    Q_PROPERTY(QString navigationText READ navigationText NOTIFY navigationTextChanged)
+    Q_PROPERTY(bool navigationHealthy READ navigationHealthy NOTIFY navigationHealthyChanged)
+    Q_PROPERTY(double aircraftHeadingDeg READ aircraftHeadingDeg NOTIFY aircraftHeadingDegChanged)
+    Q_PROPERTY(QString feedback READ feedback NOTIFY feedbackChanged)
+    Q_PROPERTY(QString availabilityReason READ availabilityReason NOTIFY availabilityReasonChanged)
+    Q_PROPERTY(QVariantList actions READ actions NOTIFY actionsChanged)
+    Q_PROPERTY(QVariantMap targetView READ targetView NOTIFY targetViewChanged)
 
 public:
     explicit DCLinkManager(DigiviewManager* digiview, QObject* parent = nullptr);
@@ -70,7 +70,23 @@ public:
     void setSelectedVehicleId(int systemId);
 
 signals:
-    void stateChanged();
+    void connectedChanged();
+    void statusTextChanged();
+    void vehicleTextChanged();
+    void commandTextChanged();
+    void commandNameTextChanged();
+    void commandStateTextChanged();
+    void commandOutcomeUnknownChanged();
+    void commandPendingChanged();
+    void targetTextChanged();
+    void targetStateTextChanged();
+    void navigationTextChanged();
+    void navigationHealthyChanged();
+    void aircraftHeadingDegChanged();
+    void feedbackChanged();
+    void availabilityReasonChanged();
+    void actionsChanged();
+    void targetViewChanged();
 
 private:
     enum class VehicleKind { Unknown, Copter, Plane };
@@ -88,12 +104,33 @@ private:
         QElapsedTimer age;
     };
 
+    struct Properties {
+        bool connected = false;
+        QString statusText;
+        QString vehicleText;
+        QString commandText;
+        QString commandNameText;
+        QString commandStateText;
+        bool commandOutcomeUnknown = false;
+        bool commandPending = false;
+        QString targetText;
+        QString targetStateText;
+        QString navigationText;
+        bool navigationHealthy = false;
+        double aircraftHeadingDeg = 0;
+        QString feedback;
+        QString availabilityReason;
+        QVariantList actions;
+        QVariantMap targetView;
+    };
+
     bool _transportReady() const;
-    std::optional<quint16> _nextRequestId();
+    quint16 _nextReadRequestId();
+    std::optional<quint16> _nextMutationRequestId();
     bool _sendStatus(quint16 requestId);
     bool _sendCommand(quint16 requestId, quint8 action, int item, const QString& command = {});
     void _pollTarget();
-    std::optional<int> _targetAircraftId() const;
+    std::optional<int> _aircraftContextId() const;
     void _clearTarget();
     void _receiveTarget(const mavlink_message_t& message);
     void _tick();
@@ -103,6 +140,7 @@ private:
     void _resetCatalog();
     void _markOutcomeUnknown();
     void _updateVehicle();
+    void _notifyChanges();
     void _catalogFailed(const QString& reason);
     QString _actionReason(const QString& command) const;
     QString _commandLabel(const QString& command) const;
@@ -134,8 +172,9 @@ private:
     std::optional<Request> _statusRequest;
     std::optional<Request> _catalogRequest;
     std::optional<Request> _mutation;
-    quint32 _nextId = 0;
-    quint32 _issuedIds = 0;
+    quint16 _nextReadId = 0;
+    quint16 _nextMutationId = 1;
+    quint32 _issuedMutationIds = 0;
     int _catalogCount = 0;
     int _catalogNextItem = 0;
     int _autopilotConnection = 0;
@@ -148,6 +187,7 @@ private:
     QString _activeCommand;
     QString _catalogError;
     QString _feedback;
+    Properties _notifiedProperties;
     bool _connected = false;
     bool _catalogReady = false;
     bool _awaitingReconciliation = false;

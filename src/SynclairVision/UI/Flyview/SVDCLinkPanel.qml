@@ -28,9 +28,7 @@ Item {
     readonly property real minimumHeight: favoritesOnly
         ? (visibleFavoriteCount > 0 ? ScreenTools.defaultFontPixelHeight * 1.75 : 0)
         : fixedContent.implicitHeight + margin * 2
-    // Polls notify unchanged action lists; keep delegates and scroll position stable between real changes.
-    readonly property string _actionSnapshot: JSON.stringify(client && client.actions ? client.actions : [])
-    readonly property var _actions: JSON.parse(_actionSnapshot)
+    readonly property var _actions: client ? client.actions : []
     readonly property var _favoriteIds: normalizedFavorites(favoriteCommands)
     readonly property var _favorites: _actions.filter(action => isFavorite(action.command))
     readonly property var _otherActions: _actions.filter(action => !isFavorite(action.command))

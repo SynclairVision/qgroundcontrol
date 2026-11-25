@@ -44,13 +44,18 @@ or ambiguity never falls back to an unbound target. Radar can show relative
 bearing as a labelled edge arrow without constructing position from angles
 and range; heading-up needs no compass heading for this direction-only cue.
 
-Polling uses its own non-reused 32-bit read IDs at up to 4 Hz. Only a matching
+Target polling uses its own non-reused 32-bit read IDs at up to 4 Hz. Only a matching
 STATUS establishes service liveness. Target responses require matching DCLink
 source, request, aircraft, schema and increasing sequence within a boot.
 Transport/aircraft changes, ambiguous aircraft, unsupported capabilities and
 stale status invalidate the snapshot. The snapshot expires after one second;
 target geometry also expires at its reported remaining lifetime after subtracting
 the whole request round trip. Repeated polls cannot freshen an old observation.
+
+STATUS and command-catalog reads use even 16-bit request IDs that wrap without
+consuming the mutation budget. START uses odd IDs that are never reused during
+the QGC lifetime, including across reconnects. Read and mutation replies cannot
+share an identity; the mutation limit disables commands while read polling continues.
 
 For manual review with a simulated aircraft: confirm that an angular-only
 target has null range/coordinates, lost detections clear geometry, stale STATUS
@@ -118,6 +123,12 @@ The compact strip uses `commandNameText`, `commandStateText`,
 `navigationHealthy`, keeping errors/uncertain outcomes visible without parsing
 translated status strings. Full status/navigation detail is available by
 selecting DCLink. The connection dot reflects fresh correlated STATUS only.
+
+Each QML property has its own change notification, emitted only when its exposed
+value changes. The timer still advances target ages and expires stale status,
+targets and heading; unchanged polls leave command delegates in place. Heading
+uses the same aircraft identity and freshness checks as target data, independent
+of the aircraft-type restrictions on command execution.
 
 Validation must distinguish the linked application, native-map simulated UI
 review, backend protocol review and actual vehicle operation. Do not treat a

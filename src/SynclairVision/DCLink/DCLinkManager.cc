@@ -28,7 +28,7 @@ constexpr int STATUS_TIMEOUT_MS = 3000;
 constexpr int VEHICLE_TIMEOUT_MS = 3500;
 constexpr int HEADING_TIMEOUT_MS = 1500;
 constexpr int MAX_CATALOG_ITEMS = 256;
-constexpr quint32 REQUEST_ID_COUNT = 65536;
+constexpr quint32 MUTATION_ID_COUNT = 32768;
 
 template<std::size_t N>
 std::optional<QString> wireText(const char (&value)[N])
@@ -45,7 +45,8 @@ DCLinkManager::DCLinkManager(DigiviewManager* digiview, QObject* parent)
     : QObject(parent),
       _digiview(digiview),
       _targetNextId(QRandomGenerator::global()->bounded(1u, 0x80000000u)),
-      _nextId(QRandomGenerator::global()->bounded(REQUEST_ID_COUNT))
+      _nextReadId(static_cast<quint16>(QRandomGenerator::global()->bounded(MUTATION_ID_COUNT) * 2)),
+      _nextMutationId(static_cast<quint16>(QRandomGenerator::global()->bounded(MUTATION_ID_COUNT) * 2 + 1))
 {
     if (!_digiview || !_digiview->connection()) {
         return;
@@ -63,6 +64,7 @@ DCLinkManager::DCLinkManager(DigiviewManager* digiview, QObject* parent)
     connect(&_timer, &QTimer::timeout, this, &DCLinkManager::_tick);
     _timer.start(250);
     _updateVehicle();
+    _notifyChanges();
 }
 
 DCLinkManager::~DCLinkManager() = default;
@@ -81,15 +83,25 @@ bool DCLinkManager::_transportReady() const
         && _digiview->connection() && !_digiview->connection()->usingLegacyTcpControl();
 }
 
-std::optional<quint16> DCLinkManager::_nextRequestId()
+quint16 DCLinkManager::_nextReadRequestId()
 {
-    // Never reuse an identity, including after reconnects: DCLink retains mutation results until reboot.
-    if (_issuedIds >= REQUEST_ID_COUNT) {
-        _feedback = tr("The DCLink session limit was reached. Restart QGC to reconnect.");
+    // Reads use even IDs so their replies cannot match a cached or in-flight mutation.
+    const auto id = _nextReadId;
+    _nextReadId = static_cast<quint16>(_nextReadId + 2);
+    return id;
+}
+
+std::optional<quint16> DCLinkManager::_nextMutationRequestId()
+{
+    // Odd mutation IDs are never reused, including after reconnects.
+    if (_issuedMutationIds >= MUTATION_ID_COUNT) {
+        _feedback = tr("The DCLink command limit was reached. Restart QGC to send more commands.");
         return std::nullopt;
     }
-    ++_issuedIds;
-    return static_cast<quint16>(_nextId++);
+    ++_issuedMutationIds;
+    const auto id = _nextMutationId;
+    _nextMutationId = static_cast<quint16>(_nextMutationId + 2);
+    return id;
 }
 
 bool DCLinkManager::_sendStatus(quint16 requestId)
@@ -160,7 +172,7 @@ void DCLinkManager::_resetSession()
     _observations.clear();
     _activeCommand.clear();
     _updateVehicle();
-    emit stateChanged();
+    _notifyChanges();
 }
 
 void DCLinkManager::_catalogFailed(const QString& reason)
@@ -207,12 +219,90 @@ void DCLinkManager::_updateVehicle()
         ? tr("DCLink commands are unavailable for this aircraft type.") : QString();
 }
 
+void DCLinkManager::_notifyChanges()
+{
+    const Properties current{
+        .connected = connected(),
+        .statusText = statusText(),
+        .vehicleText = vehicleText(),
+        .commandText = commandText(),
+        .commandNameText = commandNameText(),
+        .commandStateText = commandStateText(),
+        .commandOutcomeUnknown = commandOutcomeUnknown(),
+        .commandPending = commandPending(),
+        .targetText = targetText(),
+        .targetStateText = targetStateText(),
+        .navigationText = navigationText(),
+        .navigationHealthy = navigationHealthy(),
+        .aircraftHeadingDeg = aircraftHeadingDeg(),
+        .feedback = feedback(),
+        .availabilityReason = availabilityReason(),
+        .actions = actions(),
+        .targetView = targetView(),
+    };
+    const auto previous = _notifiedProperties;
+    _notifiedProperties = current;
+
+    if (previous.connected != current.connected) {
+        emit connectedChanged();
+    }
+    if (previous.statusText != current.statusText) {
+        emit statusTextChanged();
+    }
+    if (previous.vehicleText != current.vehicleText) {
+        emit vehicleTextChanged();
+    }
+    if (previous.commandText != current.commandText) {
+        emit commandTextChanged();
+    }
+    if (previous.commandNameText != current.commandNameText) {
+        emit commandNameTextChanged();
+    }
+    if (previous.commandStateText != current.commandStateText) {
+        emit commandStateTextChanged();
+    }
+    if (previous.commandOutcomeUnknown != current.commandOutcomeUnknown) {
+        emit commandOutcomeUnknownChanged();
+    }
+    if (previous.commandPending != current.commandPending) {
+        emit commandPendingChanged();
+    }
+    if (previous.targetText != current.targetText) {
+        emit targetTextChanged();
+    }
+    if (previous.targetStateText != current.targetStateText) {
+        emit targetStateTextChanged();
+    }
+    if (previous.navigationText != current.navigationText) {
+        emit navigationTextChanged();
+    }
+    if (previous.navigationHealthy != current.navigationHealthy) {
+        emit navigationHealthyChanged();
+    }
+    if (previous.aircraftHeadingDeg != current.aircraftHeadingDeg &&
+        !(std::isnan(previous.aircraftHeadingDeg) && std::isnan(current.aircraftHeadingDeg))) {
+        emit aircraftHeadingDegChanged();
+    }
+    if (previous.feedback != current.feedback) {
+        emit feedbackChanged();
+    }
+    if (previous.availabilityReason != current.availabilityReason) {
+        emit availabilityReasonChanged();
+    }
+    if (previous.actions != current.actions) {
+        emit actionsChanged();
+    }
+    if (previous.targetView != current.targetView) {
+        emit targetViewChanged();
+    }
+}
+
 void DCLinkManager::_tick()
 {
     _updateVehicle();
     _pollTarget();
     if (!_transportReady()) {
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
     if (_connected && _lastStatus.elapsed() > STATUS_TIMEOUT_MS) {
@@ -227,11 +317,10 @@ void DCLinkManager::_tick()
         _statusRequest.reset();
     }
     if (!_statusRequest && (!_lastPoll.isValid() || _lastPoll.elapsed() >= 1000)) {
-        if (const auto id = _nextRequestId()) {
-            _lastPoll.start();
-            if (_sendStatus(*id)) {
-                _statusRequest = Request{.id = *id};
-            }
+        const auto id = _nextReadRequestId();
+        _lastPoll.start();
+        if (_sendStatus(id)) {
+            _statusRequest = Request{.id = id};
         }
     }
 
@@ -245,15 +334,14 @@ void DCLinkManager::_tick()
         }
     }
     if (_connected && !_catalogReady && !_catalogRequest && _catalogRetry.hasExpired()) {
-        if (const auto id = _nextRequestId()) {
-            if (_sendCommand(*id, DCLINK_ACTION_GET, _catalogNextItem)) {
-                _catalogRequest = Request{.id = *id, .item = _catalogNextItem};
-            } else {
-                _catalogFailed(tr("DCLink command list could not be requested."));
-            }
+        const auto id = _nextReadRequestId();
+        if (_sendCommand(id, DCLINK_ACTION_GET, _catalogNextItem)) {
+            _catalogRequest = Request{.id = id, .item = _catalogNextItem};
+        } else {
+            _catalogFailed(tr("DCLink command list could not be requested."));
         }
     }
-    emit stateChanged();
+    _notifyChanges();
 }
 
 void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
@@ -269,7 +357,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
             observation.type = heartbeat.type;
             observation.age.start();
             _updateVehicle();
-            emit stateChanged();
+            _notifyChanges();
         }
         return;
     }
@@ -308,7 +396,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
             _awaitingReconciliation = false;
             _feedback = tr("Current state refreshed. The previous command acknowledgement was not received.");
         }
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
     if (message.msgid == MAVLINK_MSG_ID_DCLINK_TARGET_VIEW) {
@@ -340,7 +428,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
             _feedback = tr("DCLink rejected the command.");
         }
         _mutation.reset();
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
     if (!_catalogRequest || response.request_id != _catalogRequest->id) {
@@ -352,7 +440,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         (requestedItem != 0 && (response.action != DCLINK_ACTION_ITEM || response.id != requestedItem ||
                                 response.total != _catalogCount || name->isEmpty() || _catalogNames.contains(*name)))) {
         _catalogFailed(tr("DCLink command list changed or returned an invalid response."));
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
 
@@ -363,6 +451,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
         const auto label = wireText(response.label);
         if (!label) {
             _catalogFailed(tr("DCLink returned an invalid command label."));
+            _notifyChanges();
             return;
         }
         _catalogNames.insert(*name);
@@ -373,7 +462,7 @@ void DCLinkManager::_receiveMessage(const mavlink_message_t& message)
     if (_catalogReady) {
         _catalogError.clear();
     }
-    emit stateChanged();
+    _notifyChanges();
 }
 
 QString DCLinkManager::_commandLabel(const QString& command) const
@@ -488,7 +577,8 @@ bool DCLinkManager::navigationHealthy() const
 void DCLinkManager::_receiveHeading(const mavlink_message_t& message)
 {
     _updateVehicle();
-    if (!_vehicleReason.isEmpty() || _observations.size() != 1 || message.sysid != _observations.constBegin().key()) {
+    const auto aircraft = _aircraftContextId();
+    if (!aircraft || *aircraft == 0 || message.sysid != *aircraft) {
         return;
     }
     double heading = std::numeric_limits<double>::quiet_NaN();
@@ -513,9 +603,9 @@ void DCLinkManager::_receiveHeading(const mavlink_message_t& message)
 
 double DCLinkManager::aircraftHeadingDeg() const
 {
-    if (!_transportReady() || !connected() || !_vehicleReason.isEmpty() || _observations.size() != 1 ||
-        _headingVehicleId != _observations.constBegin().key() || !_lastHeading.isValid() ||
-        _lastHeading.elapsed() > HEADING_TIMEOUT_MS) {
+    const auto aircraft = _aircraftContextId();
+    if (!_transportReady() || !connected() || !aircraft || *aircraft == 0 || _headingVehicleId != *aircraft ||
+        !_lastHeading.isValid() || _lastHeading.elapsed() > HEADING_TIMEOUT_MS) {
         return std::numeric_limits<double>::quiet_NaN();
     }
     return _aircraftHeadingDeg;
@@ -598,7 +688,9 @@ QString DCLinkManager::availabilityReason() const
         return tr("Waiting for fresh DCLink status.");
     }
     if (!_vehicleReason.isEmpty()) return _vehicleReason;
-    if (_issuedIds >= REQUEST_ID_COUNT) return tr("Restart QGC to renew the DCLink session.");
+    if (_issuedMutationIds >= MUTATION_ID_COUNT) {
+        return tr("Restart QGC to send more DCLink commands.");
+    }
     if (_awaitingReconciliation) return tr("Waiting for current command state.");
     if (_mutation) return tr("Waiting for command acknowledgement.");
     if (!_catalogReady) {
@@ -649,23 +741,23 @@ bool DCLinkManager::startAction(const QString& command)
     const auto reason = _actionReason(command);
     if (!reason.isEmpty()) {
         _feedback = reason;
-        emit stateChanged();
+        _notifyChanges();
         return false;
     }
-    const auto id = _nextRequestId();
+    const auto id = _nextMutationRequestId();
     if (!id) {
-        emit stateChanged();
+        _notifyChanges();
         return false;
     }
     // Mutations are sent exactly once. Only read requests are eligible for retries.
     if (!_sendCommand(*id, DCLINK_ACTION_START, 0, command)) {
         _feedback = tr("The command could not be sent.");
-        emit stateChanged();
+        _notifyChanges();
         return false;
     }
     _mutation = Request{.id = *id, .command = command};
     _feedback = tr("Sending %1…").arg(_commandLabel(command));
-    emit stateChanged();
+    _notifyChanges();
     return true;
 }
 
@@ -680,7 +772,7 @@ void DCLinkManager::_clearTarget()
     _targetData.clear();
 }
 
-std::optional<int> DCLinkManager::_targetAircraftId() const
+std::optional<int> DCLinkManager::_aircraftContextId() const
 {
     // A camera-only connection can supply read-only direction, but cannot establish aircraft authority.
     if (_observations.isEmpty()) {
@@ -698,7 +790,7 @@ std::optional<int> DCLinkManager::_targetAircraftId() const
 
 void DCLinkManager::_pollTarget()
 {
-    const auto aircraft = _targetAircraftId();
+    const auto aircraft = _aircraftContextId();
     if (!_transportReady() || !connected() || !aircraft || !(_statusFlags & DCLINK_STATUS_FLAGS_TARGET_VIEW)) {
         _clearTarget();
         return;
@@ -737,7 +829,7 @@ void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
         return;
     }
     _updateVehicle();
-    const auto aircraft = _targetAircraftId();
+    const auto aircraft = _aircraftContextId();
     const bool identityMatches = aircraft && _targetContextId == *aircraft &&
                                  (*aircraft == 0 ? (target.vehicle_component_id == MAV_COMP_ID_AUTOPILOT1 ||
                                                     (target.vehicle_system_id == 0 && target.vehicle_component_id == 0))
@@ -767,13 +859,13 @@ void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
         !valid(DCLINK_TARGET_VIEW_FLAGS_RELATIVE_POSITION, target.relative_east_m, -1e9, 1e9) ||
         (_targetBootId == target.boot_id && target.sequence <= _targetSequence)) {
         _clearTarget();
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
     const auto roundTripMs = _targetQueryAge.elapsed();
     if (roundTripMs >= 1000) {
         _clearTarget();
-        emit stateChanged();
+        _notifyChanges();
         return;
     }
     _targetRequestId = 0;
@@ -799,12 +891,12 @@ void DCLinkManager::_receiveTarget(const mavlink_message_t& message)
                    {QStringLiteral("relativeNorthM"), target.relative_north_m},
                    {QStringLiteral("relativeEastM"), target.relative_east_m}};
     _lastTarget.start();
-    emit stateChanged();
+    _notifyChanges();
 }
 
 QVariantMap DCLinkManager::targetView() const
 {
-    const auto aircraft = _targetAircraftId();
+    const auto aircraft = _aircraftContextId();
     const bool bound = aircraft && *aircraft > 0;
     const bool available = _transportReady() && connected() && aircraft && _targetContextId == *aircraft &&
                            (!bound || _targetVehicleId == *aircraft) && _lastTarget.isValid() &&

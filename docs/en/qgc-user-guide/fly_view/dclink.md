@@ -103,7 +103,8 @@ menu retains priority, with scrolling where needed.
   N/E/S/W rotate around the radar whenever a valid aircraft heading is
   available. Without heading, their heading-up positions are unknown, so the
   letters remain hidden. Heading is aircraft yaw, not course over ground or
-  camera direction.
+  camera direction. Read-only heading also works for aircraft types, such as
+  VTOL, whose DCLink commands are unavailable in QGC.
 
   With bearing but no usable position, radar shows an edge arrow labelled
   **bearing only**, without a position dot or distance scale. Heading-up uses
