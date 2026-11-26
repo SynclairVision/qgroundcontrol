@@ -4,9 +4,9 @@ The SynclairVision overlay adds DCLink status and target information to Fly
 View. The QGC map, mission, aircraft marker, map gestures and flight-command
 menu remain available.
 
-The proposed DCLink-owned mission workflow is documented in the
-[Phase 1 planning design](../../qgc-dev-guide/plan/dclink_missions.md).
-It is a design reference for future implementation.
+The DCLink-owned mission workflow is documented in the
+[mission planning guide](../../qgc-dev-guide/plan/dclink_missions.md).
+The transport client is available; the planning editor is a subsequent delivery.
 
 ## Connect and read status
 

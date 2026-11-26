@@ -1,8 +1,8 @@
-# DCLink mission planning: Phase 1 design
+# DCLink mission planning
 
-This document defines the proposed QGC workflow. Phase 1 is a design contract;
-the mission library, editor and execution UI described below are not implemented
-by this phase.
+This document defines the QGC planning workflow. The shared mission format,
+DCLink library and MAVLink client interface are implemented. The map editor,
+rules, areas and execution UI below are subsequent deliveries.
 
 DCLink owns the saved mission library. QGC and Maintenance are clients of the
 same service, so either client can create and edit a mission without the other
@@ -10,9 +10,53 @@ being present. The canonical data model and API belong in the shared
 [mission contract](https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/README.md)
 and [mission schema][schema].
 This page specifies QGC interaction and state handling without redefining those
-contracts. Phase 1 does not change message-definition pins.
+contracts. Both consumers pin matching message definitions.
 
 [schema]: https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/mission.schema.json
+
+## Available transport interface
+
+`SVBackend.missions` owns the mission-library client separately from flight
+commands. It uses the DigiView MAVLink connection without requiring an autopilot
+or an active aircraft. Open that connection to the router carrying DCLink.
+The default peer is system/component `252/67`; `setPeer(systemId, componentId)`
+selects a different explicit nonzero peer and clears its discovered session.
+
+- `discover()` sends a capabilities query and returns its logical request UUID.
+- `request(action, payload, requestId)` sends an advertised library operation;
+  omit the optional ID for a new operation. An explicit retry uses its original
+  ID and unchanged content after rediscovery confirms the same service boot.
+- `finished(requestId, action, result)` supplies the complete verified logical
+  response. Its `result` code describes the operation, and `data` carries the
+  saved identity/revision, catalog or mission record. Create/update return
+  metadata; use `missions.get` for complete content.
+- `busy`, `available`, `serviceSession`, `capabilities`, `lastResult`, `error`,
+  and `outcomeUnknown` supply asynchronous state. Availability requires verified
+  discovery, not an aircraft heartbeat.
+
+Discovery and all reads are explicit; the client does not poll or start missions
+automatically. The [wire profile][wire] defines addressed chunks, integrity,
+session binding, stop-and-wait exchange retries and limits. Endpoint, sender or
+peer changes cancel the current exchange without sending its content elsewhere.
+No mission content is exposed until its complete reply is validated.
+`cancelRequest()` abandons the current transfer; it is not a flight command or
+an undo of a committed save. Cancellation after a mutation COMMIT preserves the
+uncertain outcome until review or reconciliation.
+
+If a mutation COMMIT was attempted and its response is lost, `outcomeUnknown`
+stays visible through reads, reconnects and rediscovery. A reported storage error
+also requires review. `uncertainOperation` preserves the UUID, action, original
+endpoint and service session. A same-session retry can reconcile its retained
+outcome; it is bound to the original identity and content. Other changes are blocked
+until reconciliation or `acknowledgeOutcome()`, which represents an explicit
+operator decision after reviewing fresh library state. It sends no request and
+does not cancel or alter a saved mission. After a boot change an old mutation
+identity cannot be rebound; a new mutation needs that explicit review.
+
+Phase 3 adds this API without adding planning buttons or changing the map,
+aircraft upload, current flight-command controls or target overlay.
+
+[wire]: https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/mavlink.md
 
 ## Planning destination and ownership
 

@@ -18,6 +18,8 @@ qt_add_qml_module(SynclairVisionUIModule
     SOURCES
         ../DCLink/DCLinkManager.cc
         ../DCLink/DCLinkManager.h
+        ../DCLink/DCLinkMissionClient.cc
+        ../DCLink/DCLinkMissionClient.h
         ../Digiview/DigiviewProtocolEnums.h
         SVBackend.cc
         SVBackend.h

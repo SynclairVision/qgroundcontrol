@@ -1,6 +1,7 @@
 #include "SVBackend.h"
 
 #include "DCLinkManager.h"
+#include "DCLinkMissionClient.h"
 #include "DigiviewManager.h"
 #include "VideoManager.h"
 #include "VideoSourceConfiguration.h"
@@ -9,6 +10,7 @@ SVBackend::SVBackend(DigiviewManager* digiview, QObject* parent)
     : QObject(parent)
     , _digiview(digiview)
     , _dclink(new DCLinkManager(digiview, this))
+    , _missions(new DCLinkMissionClient(digiview, this))
 {
 }
 
