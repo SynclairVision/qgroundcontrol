@@ -6,12 +6,14 @@
 class DigiviewManager;
 class DCLinkManager;
 class DCLinkMissionClient;
+class DCLinkMissionEditor;
 class QJSEngine;
 class QQmlEngine;
 
 Q_MOC_INCLUDE("DigiviewManager.h")
 Q_MOC_INCLUDE("DCLinkManager.h")
 Q_MOC_INCLUDE("DCLinkMissionClient.h")
+Q_MOC_INCLUDE("DCLinkMissionEditor.h")
 
 class SVBackend final : public QObject
 {
@@ -22,6 +24,7 @@ class SVBackend final : public QObject
     Q_PROPERTY(DigiviewManager* digiview READ digiview CONSTANT)
     Q_PROPERTY(DCLinkManager* dclink READ dclink CONSTANT)
     Q_PROPERTY(DCLinkMissionClient* missions READ missions CONSTANT)
+    Q_PROPERTY(DCLinkMissionEditor* missionEditor READ missionEditor CONSTANT)
 
 public:
     explicit SVBackend(DigiviewManager* digiview, QObject* parent = nullptr);
@@ -31,6 +34,7 @@ public:
     DigiviewManager* digiview() const { return _digiview; }
     DCLinkManager* dclink() const { return _dclink; }
     DCLinkMissionClient* missions() const { return _missions; }
+    DCLinkMissionEditor* missionEditor() const { return _missionEditor; }
 
     Q_INVOKABLE void configureNetworkVideo(bool enabled, const QString& uri, bool forceRtspTcp);
 
@@ -38,4 +42,5 @@ private:
     DigiviewManager* const _digiview;
     DCLinkManager* const _dclink;
     DCLinkMissionClient* const _missions;
+    DCLinkMissionEditor* const _missionEditor;
 };

@@ -4,8 +4,6 @@
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
-#include <QtCore/QList>
-#include <QtCore/QSet>
 #include <QtCore/QStringConverter>
 #include <QtCore/QStringList>
 #include <QtCore/QUuid>
@@ -18,6 +16,7 @@
 #include "MAVLinkLib.h"
 // clang-format on
 
+#include "DCLinkMissionJson.h"
 #include "DigiviewConnection.h"
 #include "DigiviewManager.h"
 
@@ -99,55 +98,6 @@ bool knownAction(const QString& action)
         QStringLiteral("missions.import_route"),
     };
     return actions.contains(action);
-}
-
-bool uniqueObjectKeys(const QByteArray& json)
-{
-    // QJsonDocument validates grammar but retains only the last duplicate key.
-    struct Scope
-    {
-        bool object;
-        bool keyExpected;
-        QSet<QString> keys;
-    };
-
-    QList<Scope> scopes;
-    for (qsizetype index = 0; index < json.size(); ++index) {
-        const char token = json[index];
-        if (token == '{' || token == '[') {
-            scopes.append({token == '{', token == '{', {}});
-        } else if (token == '}' || token == ']') {
-            if (scopes.isEmpty()) {
-                return false;
-            }
-            scopes.removeLast();
-        } else if (token == ',' && !scopes.isEmpty()) {
-            scopes.last().keyExpected = scopes.last().object;
-        } else if (token == '"') {
-            const qsizetype start = index;
-            while (++index < json.size()) {
-                if (json[index] == '\\') {
-                    ++index;
-                } else if (json[index] == '"') {
-                    break;
-                }
-            }
-            if (!scopes.isEmpty() && scopes.last().keyExpected) {
-                const QByteArray literal = '[' + json.mid(start, index - start + 1) + ']';
-                const QJsonDocument keyDocument = QJsonDocument::fromJson(literal);
-                if (!keyDocument.isArray() || keyDocument.array().size() != 1) {
-                    return false;
-                }
-                const QString key = keyDocument.array().first().toString();
-                if (scopes.last().keys.contains(key)) {
-                    return false;
-                }
-                scopes.last().keys.insert(key);
-                scopes.last().keyExpected = false;
-            }
-        }
-    }
-    return scopes.isEmpty();
 }
 }  // namespace
 
@@ -509,7 +459,7 @@ void DCLinkMissionClient::_receiveMessage(const mavlink_message_t& message)
                                QStringLiteral("busy"),
                                QStringLiteral("stale_session"),
                                QStringLiteral("error")};
-    if (!validJson(result) || !uniqueObjectKeys(_reply) ||
+    if (!validJson(result) || !DCLinkMissionJson::uniqueObjectKeys(_reply) ||
         result.value(QStringLiteral("client_id")).toString() != uuidText(_clientId) ||
         result.value(QStringLiteral("request_id")).toString() != uuidText(_requestId) ||
         result.value(QStringLiteral("service_session")).toString() != uuidText(_candidateSession) ||

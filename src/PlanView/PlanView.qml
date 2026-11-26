@@ -13,6 +13,7 @@ import QGroundControl.FactControls
 import QGroundControl.FlyView
 import QGroundControl.Geo
 import QGroundControl.Toolbar
+import QGroundControl.SynclairVisionUI
 
 Item {
     id: _root
@@ -34,6 +35,8 @@ Item {
     property bool   _promptForPlanUsageShowing: false
     property bool   _addROIOnClick: false
     property bool   _addWaypointOnClick: false
+    property bool   _dclinkMission: false
+    property bool   _deferredAircraftPrompt: false
 
     readonly property int _layerMission: PlanEditLayers.layerMission
     readonly property int _layerFence: PlanEditLayers.layerFence
@@ -79,6 +82,10 @@ Item {
         }
 
         onPromptForPlanUsageOnVehicleChange: {
+            if (_root._dclinkMission) {
+                _root._deferredAircraftPrompt = true
+                return
+            }
             if (!_promptForPlanUsageShowing) {
                 _promptForPlanUsageShowing = true
                 promptForPlanUsageOnVehicleChangePopupFactory.open()
@@ -162,7 +169,7 @@ Item {
         target: _missionController
 
         function onNewItemsFromVehicle() {
-            if (_visualItems && _visualItems.count !== 1) {
+            if (!_root._dclinkMission && _visualItems && _visualItems.count !== 1) {
                 mapFitFunctions.fitMapViewportToMissionItems()
             }
             _missionController.setCurrentPlanViewSeqNum(0, true)
@@ -239,6 +246,24 @@ Item {
         id: planToolBar
         planMasterController: _planMasterController
         showRallyPointsHelp: _editingLayer === _layerRally
+        dclinkMission: _root._dclinkMission
+        onDestinationRequested: (dclink) => {
+            const apply = function() {
+                _root._dclinkMission = dclink
+                _addWaypointOnClick = false
+                _addROIOnClick = false
+                if (!dclink && _root._deferredAircraftPrompt && !_promptForPlanUsageShowing) {
+                    _root._deferredAircraftPrompt = false
+                    _promptForPlanUsageShowing = true
+                    promptForPlanUsageOnVehicleChangePopupFactory.open()
+                }
+            }
+            if (_root._dclinkMission && !dclink) {
+                dclinkPanel.guardChange(apply)
+            } else {
+                apply()
+            }
+        }
     }
 
     Item {
@@ -263,8 +288,8 @@ Item {
             // This is the center rectangle of the map which is not obscured by tools
             property rect centerViewport: Qt.rect(_leftToolWidth + _margin,  _margin, editorMap.width - _leftToolWidth - _rightToolWidth - (_margin * 2), (missionStatus.visible ? missionStatus.y : height - _margin) - _margin)
 
-            property real _leftToolWidth: toolStrip.x + toolStrip.width
-            property real _rightToolWidth: rightPanel.width + rightPanel.anchors.rightMargin
+            property real _leftToolWidth: _dclinkMission ? 0 : toolStrip.x + toolStrip.width
+            property real _rightToolWidth: _dclinkMission ? dclinkPanel.width : rightPanel.width + rightPanel.anchors.rightMargin
             property real _nonInteractiveOpacity: 0.5
 
             // Initial map position duplicates Fly view position
@@ -292,6 +317,13 @@ Item {
                 coordinate.latitude = coordinate.latitude.toFixed(_decimalPlaces)
                 coordinate.longitude = coordinate.longitude.toFixed(_decimalPlaces)
                 coordinate.altitude = coordinate.altitude.toFixed(_decimalPlaces)
+
+                if (_dclinkMission) {
+                    if (dclinkPanel.addingWaypoints) {
+                        SVBackend.missionEditor.addWaypoint(coordinate.latitude, coordinate.longitude)
+                    }
+                    return
+                }
 
                 switch (_editingLayer) {
                 case _layerMission:
@@ -324,7 +356,7 @@ Item {
                 id: _missionItemIndicatorGroup
 
                 map: editorMap
-                missionItems: _root._missionController.visualItems
+                missionItems: _dclinkMission ? null : _root._missionController.visualItems
                 onItemSelected: (sequenceNumber) => {
                     _root._missionController.setCurrentPlanViewSeqNum(sequenceNumber, false)
                 }
@@ -332,7 +364,7 @@ Item {
 
             // Add the mission item visuals to the map
             Repeater {
-                model: _missionController.visualItems
+                model: _dclinkMission ? null : _missionController.visualItems
                 delegate: MissionItemMapVisual {
                     map: editorMap
                     opacity: _editingLayer == _layerMission ? 1 : editorMap._nonInteractiveOpacity
@@ -348,13 +380,13 @@ Item {
             // Add lines between waypoints
             MissionLineView {
                 showSpecialVisual: _missionController.isROIBeginCurrentItem
-                model: _missionController.simpleFlightPathSegments
+                model: _dclinkMission ? null : _missionController.simpleFlightPathSegments
                 opacity: _editingLayer == _layerMission ? 1 : editorMap._nonInteractiveOpacity
             }
 
             // Direction arrows in waypoint lines
             MapItemView {
-                model: _editingLayer == _layerMission ? _missionController.directionArrows : undefined
+                model: !_dclinkMission && _editingLayer == _layerMission ? _missionController.directionArrows : undefined
 
                 delegate: MapLineArrow {
                     fromCoord: object ? object.coordinate1 : undefined
@@ -374,7 +406,7 @@ Item {
                 anchorPoint.x: sourceItem.width / 2
                 anchorPoint.y: sourceItem.height / 2
                 z: QGroundControl.zOrderWaypointLines + 1
-                visible: _editingLayer == _layerMission
+                visible: !_dclinkMission && _editingLayer == _layerMission
                          && _screenLegLength > _missionItemIndicatorGroup.groupingDistance * 2
 
                 sourceItem: SplitIndicator {
@@ -435,23 +467,35 @@ Item {
                 }
             }
 
-            GeoFenceMapVisuals {
-                objectName: "planView_geoFenceMapVisuals"
-                map: editorMap
-                myGeoFenceController: _geoFenceController
-                interactive: _editingLayer == _layerFence
-                homePosition: _missionController.plannedHomePosition
-                planView: true
-                opacity: _editingLayer != _layerFence ? editorMap._nonInteractiveOpacity : 1
+            Loader {
+                active: !_root._dclinkMission
+                sourceComponent: GeoFenceMapVisuals {
+                    objectName: "planView_geoFenceMapVisuals"
+                    map: editorMap
+                    myGeoFenceController: _geoFenceController
+                    interactive: _editingLayer == _layerFence
+                    homePosition: _missionController.plannedHomePosition
+                    planView: true
+                    opacity: _editingLayer != _layerFence ? editorMap._nonInteractiveOpacity : 1
+                }
             }
 
-            RallyPointMapVisuals {
-                objectName: "planView_rallyPointMapVisuals"
-                map: editorMap
-                myRallyPointController: _rallyPointController
-                interactive: _editingLayer == _layerRally
-                planView: true
-                opacity: _editingLayer != _layerRally ? editorMap._nonInteractiveOpacity : 1
+            Loader {
+                active: !_root._dclinkMission
+                sourceComponent: RallyPointMapVisuals {
+                    objectName: "planView_rallyPointMapVisuals"
+                    map: editorMap
+                    myRallyPointController: _rallyPointController
+                    interactive: _editingLayer == _layerRally
+                    planView: true
+                    opacity: _editingLayer != _layerRally ? editorMap._nonInteractiveOpacity : 1
+                }
+            }
+
+            SVDCLinkMissionMapItems {
+                mapControl: editorMap
+                active: _root._dclinkMission
+                onPointSelected: dclinkPanel.addingWaypoints = false
             }
 
         }
@@ -465,7 +509,7 @@ Item {
             anchors.top: parent.top
             z: QGroundControl.zOrderWidgets
             maxHeight: parent.height - toolStrip.y
-            visible: _editingLayer == _layerMission
+            visible: !_dclinkMission && _editingLayer == _layerMission
 
             property bool _isMissionLayer: _editingLayer == _layerMission
 
@@ -577,9 +621,21 @@ Item {
             anchors.bottom: parent.bottom
             anchors.right: parent.right
             width: _rightPanelWidth
+            visible: !_root._dclinkMission
             planMasterController: _planMasterController
             editorMap: editorMap
             onEditingLayerChangeRequested: (layer) => _editingLayer = layer
+        }
+
+        SVDCLinkMissionPanel {
+            id: dclinkPanel
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            anchors.margins: _toolsMargin
+            width: Math.min(parent.width * 0.45, ScreenTools.defaultFontPixelWidth * 42)
+            visible: _root._dclinkMission
+            editorMap: editorMap
         }
 
         // Layer switching icons — only active icon visible; click to expand choices leftward
@@ -593,7 +649,7 @@ Item {
             width:                  layerRow.width
             height:                 _layerButtonSize
             z:                      QGroundControl.zOrderWidgets
-            visible:                !_planMasterController.showCreateFromTemplate
+            visible:                !_dclinkMission && !_planMasterController.showCreateFromTemplate
 
             property bool   expanded: false
             property real   _layerButtonSize: ScreenTools.defaultFontPixelHeight * 2.0
@@ -701,7 +757,7 @@ Item {
             anchors.right: rightPanel.left
             anchors.bottom: parent.bottom
             spacing: 0
-            visible: !hidden && _editingLayer == _layerMission && QGroundControl.corePlugin.options.showMissionStatus
+            visible: !_dclinkMission && !hidden && _editingLayer == _layerMission && QGroundControl.corePlugin.options.showMissionStatus
 
             readonly property bool hidden: _planViewSettings.showMissionItemStatus.rawValue ? false : true
 

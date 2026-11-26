@@ -1,8 +1,8 @@
 # DCLink mission planning
 
 This document defines the QGC planning workflow. The shared mission format,
-DCLink library and MAVLink client interface are implemented. The map editor,
-rules, areas and execution UI below are subsequent deliveries.
+DCLink library, MAVLink client and QGC route editor are implemented. Rules,
+behavior areas and mission execution remain subsequent deliveries.
 
 DCLink owns the saved mission library. QGC and Maintenance are clients of the
 same service, so either client can create and edit a mission without the other
@@ -53,10 +53,93 @@ operator decision after reviewing fresh library state. It sends no request and
 does not cancel or alter a saved mission. After a boot change an old mutation
 identity cannot be rebound; a new mutation needs that explicit review.
 
-Phase 3 adds this API without adding planning buttons or changing the map,
-aircraft upload, current flight-command controls or target overlay.
+The route editor uses this API without calling aircraft upload or changing
+current flight-command controls or the target overlay.
 
 [wire]: https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/mavlink.md
+
+## Delivered route editor
+
+In **Plan**, select **DCLink mission** beside the QGC logo. **Aircraft plan**
+retains the existing aircraft planning controls and its separate plan. The
+DCLink editor uses the same map and map navigation; only the destination's
+route visuals and editing controls are shown. Receiving an aircraft plan does
+not recenter a DCLink draft, and aircraft-change prompts wait until returning
+to the aircraft destination.
+
+Connect DigiView to the router carrying DCLink and select **Refresh**. Entering
+the editor also attempts discovery when needed; there is no background polling.
+The panel identifies the current host, port and DCLink system/component. No
+aircraft connection is needed for authoring or library operations.
+
+- The picker combines retained local drafts and the selected source's catalog.
+  Confirmed entries show a revision; unsaved entries show their draft state.
+  Duplicate names receive a short identity suffix. Drafts for another DCLink
+  remain identifiable and cannot be saved to the current source accidentally.
+- **New** creates a local draft. Edit the name directly to rename it.
+  **More → Duplicate / Save as copy** retains the original and creates a new
+  local identity. The first **Save to DCLink** confirms the named destination
+  and creates the saved mission; later saves check the base revision first.
+- **Add waypoints on map** enables insertion until **Done adding** or point
+  selection. Select a numbered point to drag it, edit coordinates, altitude
+  above HOME or acceptance radius, move it **Up/Down**, or remove it. A selected
+  point shows its acceptance circle. New points initially use a 30 m radius
+  and the previous point's altitude, or 30 m for the first point. **Fit** frames
+  this route without including unrelated aircraft plans or vehicles.
+- **More → Import QGC plan…** validates the complete supported waypoint subset
+  using QGC's `MissionItem` loader, then shows a conversion confirmation.
+  Aircraft-default radii require confirmation of the editable positive radius.
+  Unsupported content is listed and leaves the current draft intact. Import
+  produces a new local draft and never saves or uploads automatically.
+- **More → Delete saved mission…** confirms the name and deletes only that
+  saved record/revision. Its local route is retained as an unsaved draft.
+  **Remove local draft…** separately removes local work.
+
+The implementation is localized in `DCLinkMissionEditor`,
+`DCLinkMissionPlanImport`, the three `UI/Plan/SVDCLinkMission*` components and the
+Plan view/toolbar destination switch. `SVBackend.missionEditor` owns the model
+for the application lifetime, independent of view creation and active aircraft.
+The existing transport's strict JSON key check is shared with file import.
+
+Drafts are atomically stored in `dclink-mission-drafts.json` in QGC's application
+data directory, with mission content, saved base, destination and revision.
+There is room for 50 local drafts; explicitly remove unused drafts when full.
+A failed/corrupt local store is reported and prevents remote changes rather
+than overwriting the original file. The catalog is refreshed in consistent
+pages, restarting once if another client changes it during paging. At most
+10,000 catalog entries are assembled; an oversized or malformed listing is
+reported without replacing the previous catalog.
+
+Before a mutation is sent, its identity, complete payload, destination and
+service boot are retained locally. Uncertain changes keep these details through
+reconnects and restart, and block other mutations. **Retry original change** is
+offered only in the same QGC process, source and DCLink boot. After either
+application restarts, refresh and inspect the relevant saved library; explicitly
+acknowledge that review before resuming edits. Discovery or a library read never
+replays the mutation. A revision conflict offers **Reload** with confirmation or
+**Save as copy**. Unsupported documents remain read only with their complete
+content retained. Save never starts execution; there is no Start action yet.
+
+### Manual verification
+
+1. Open both destinations without an autopilot. Confirm the original aircraft
+   plan remains intact while DCLink points use the same underlying map.
+2. Create a named route, add and drag points, change altitude/radius and reorder
+   them. Save, refresh and reload; confirm values and point order remain.
+3. Duplicate, rename and save a copy. Delete its saved record, then separately
+   remove its retained local draft; confirm the original remains unchanged.
+4. Keep a dirty draft while switching entries/destinations, restart QGC and
+   reopen it. Reconnect and verify it against the latest saved base before save.
+5. Edit the same saved revision from Maintenance. Saving the older QGC draft
+   must preserve local work and offer Reload/Save as copy without overwriting.
+6. Interrupt a save around its final commit. Refresh/retry the original change
+   within the same session, or inspect the library after restart. Confirm no
+   automatic replay, duplicate creation or unqualified Saved state.
+7. Import a simple relative-HOME `.plan`, including zero/default radii. Confirm
+   the radius preview. Reject explicit yaw, holds, complex patterns, terrain or
+   absolute altitude, nonempty fence/rally content and duplicate JSON keys.
+8. Disconnect or change the DigiView destination. Local edits must remain;
+   remote actions must require discovery and a matching draft destination.
 
 ## Planning destination and ownership
 

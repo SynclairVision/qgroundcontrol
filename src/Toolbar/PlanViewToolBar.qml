@@ -15,8 +15,10 @@ Rectangle {
 
     property var planMasterController
     property bool showRallyPointsHelp: false
+    property bool dclinkMission: false
 
     signal toolbarButtonClicked()
+    signal destinationRequested(bool dclink)
 
     property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     property real _controllerProgressPct: planMasterController.missionController.progressPct
@@ -42,15 +44,30 @@ Rectangle {
         onClicked: mainWindow.showToolSelectDialog()
     }
 
+    QGCComboBox {
+        id: destinationPicker
+        anchors.left: qgcButton.right
+        anchors.leftMargin: ScreenTools.defaultFontPixelWidth
+        anchors.verticalCenter: parent.verticalCenter
+        width: ScreenTools.defaultFontPixelWidth * 22
+        model: [qsTr("Aircraft plan"), qsTr("DCLink mission")]
+        currentIndex: _root.dclinkMission ? 1 : 0
+        onActivated: (index) => {
+            _root.destinationRequested(index === 1)
+            currentIndex = Qt.binding(function() { return _root.dclinkMission ? 1 : 0 })
+        }
+    }
+
     QGCFlickable {
         id: toolsFlickable
         anchors.bottomMargin: 1
-        anchors.left: qgcButton.right
+        anchors.left: destinationPicker.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: parent.right
         contentWidth: toolIndicators.width
         flickableDirection: Flickable.HorizontalFlick
+        visible: !_root.dclinkMission
 
         PlanToolBarIndicators {
             id: toolIndicators

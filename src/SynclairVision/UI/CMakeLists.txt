@@ -20,10 +20,18 @@ qt_add_qml_module(SynclairVisionUIModule
         ../DCLink/DCLinkManager.h
         ../DCLink/DCLinkMissionClient.cc
         ../DCLink/DCLinkMissionClient.h
+        ../DCLink/DCLinkMissionEditor.cc
+        ../DCLink/DCLinkMissionEditor.h
+        ../DCLink/DCLinkMissionJson.cc
+        ../DCLink/DCLinkMissionJson.h
+        ../DCLink/DCLinkMissionPlanImport.cc
         ../Digiview/DigiviewProtocolEnums.h
         SVBackend.cc
         SVBackend.h
     QML_FILES
+        Plan/SVDCLinkMissionField.qml
+        Plan/SVDCLinkMissionMapItems.qml
+        Plan/SVDCLinkMissionPanel.qml
         Flyview/SVDCLinkButton.qml
         Flyview/SVDCLinkNoseView.qml
         Flyview/SVDCLinkOptions.qml
@@ -160,4 +168,8 @@ target_include_directories(SynclairVisionUIModule PRIVATE
     ${CMAKE_SOURCE_DIR}/message-definitions
     ${CMAKE_SOURCE_DIR}/src/VideoManager
     ${CMAKE_SOURCE_DIR}/src/MAVLink
+    ${CMAKE_SOURCE_DIR}/src/MissionManager
+    ${CMAKE_SOURCE_DIR}/src/FactSystem
 )
+
+target_link_libraries(SynclairVisionUIModule PRIVATE Qt6::Positioning)

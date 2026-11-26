@@ -6,7 +6,24 @@ menu remain available.
 
 The DCLink-owned mission workflow is documented in the
 [mission planning guide](../../qgc-dev-guide/plan/dclink_missions.md).
-The transport client is available; the planning editor is a subsequent delivery.
+For mission editing, open **Plan** and select **DCLink mission** beside the QGC
+logo. This uses the existing map with a separate DCLink route editor. Select
+**Aircraft plan** to return to normal aircraft planning.
+
+Connect DigiView and select **Refresh** in the mission panel. Select **New**,
+name the mission and enable **Add waypoints on map**. Select a numbered point
+to drag it or edit its coordinates, **Altitude above HOME (m)** and acceptance
+radius. **Up/Down** changes route order. **Save to DCLink** stores the mission;
+it does not upload the aircraft plan or start a flight. No autopilot is required
+for this workflow.
+
+The picker contains saved missions and local drafts. **More** offers Duplicate,
+Reload, QGC plan import, saved-mission deletion and local-draft removal. Names
+are edited directly. Local drafts survive restart. If another editor saved a
+newer revision, keep your changes with **Save as copy** or confirm **Reload**.
+If a save's outcome is unknown, refresh and inspect the library before retrying
+or acknowledging review. Never create another copy just to resolve uncertainty.
+Rules, behavior areas and mission execution are not available in this phase.
 
 ## Connect and read status
 
