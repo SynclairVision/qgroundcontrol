@@ -17,7 +17,6 @@ namespace {
 
 constexpr uint8_t kDigiviewSystemId = 252;
 constexpr uint8_t kDigiviewComponentId = 66;
-constexpr quint16 kDigiviewRouterPort = 14570;
 constexpr int kRestartHeartbeatLossTimeoutMs = 1500;
 
 } // namespace
@@ -323,17 +322,17 @@ bool DigiviewConnection::_sendUdpRegistration(const QHostAddress& remoteAddress)
     std::array<uint8_t, MAVLINK_MAX_PACKET_LEN> buffer {};
     const uint16_t messageLength = mavlink_msg_to_send_buffer(buffer.data(), &heartbeat);
     const qint64 bytesWritten = _socket.writeDatagram(
-        reinterpret_cast<const char*>(buffer.data()), messageLength, remoteAddress, kDigiviewRouterPort);
+        reinterpret_cast<const char*>(buffer.data()), messageLength, remoteAddress, _port);
     if (bytesWritten != messageLength) {
         _setLastError(tr("Failed to register QGC with Digiview router %1:%2: %3")
                           .arg(remoteAddress.toString())
-                          .arg(kDigiviewRouterPort)
+                          .arg(_port)
                           .arg(_socket.errorString()));
         return false;
     }
 
     qCDebug(DigiviewConnectionLog) << "Sent QGC UDP registration heartbeat to"
-                                   << remoteAddress.toString() << kDigiviewRouterPort;
+                                   << remoteAddress.toString() << _port;
     return true;
 }
 
