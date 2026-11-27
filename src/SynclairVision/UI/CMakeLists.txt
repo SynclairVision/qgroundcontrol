@@ -34,6 +34,7 @@ qt_add_qml_module(SynclairVisionUIModule
         Plan/SVDCLinkMissionMapItems.qml
         Plan/SVDCLinkMissionPanel.qml
         Flyview/SVDCLinkButton.qml
+        Flyview/SVDCLinkMissionPopup.qml
         Flyview/SVDCLinkNoseView.qml
         Flyview/SVDCLinkOptions.qml
         Flyview/SVDCLinkPanel.qml

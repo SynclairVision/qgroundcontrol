@@ -1,10 +1,11 @@
 #include "DCLinkMissionEditor.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <QtCore/QJsonObject>
 #include <QtCore/QStringList>
 #include <QtCore/QUuid>
-
-#include <cmath>
 
 #include "DCLinkMissionClient.h"
 
@@ -97,6 +98,13 @@ bool integral(const QJsonValue& field, double minimum, double maximum)
     return field.isDouble() && value >= minimum && value <= maximum && std::floor(value) == value;
 }
 
+bool launchable(const QVariantMap& record)
+{
+    const QJsonObject json = QJsonObject::fromVariantMap(record);
+    return json.value(QStringLiteral("schema_version")) == QJsonValue(1) &&
+           integral(json.value(QStringLiteral("waypoint_count")), 1, 1000);
+}
+
 bool validRun(const QVariantMap& run)
 {
     const QJsonObject json = QJsonObject::fromVariantMap(run);
@@ -131,6 +139,37 @@ bool DCLinkMissionEditor::executionSupported() const
     return operations.contains(START) && operations.contains(RUN_STATUS);
 }
 
+bool DCLinkMissionEditor::catalogReady() const
+{
+    return fresh() && _reviewedCatalog && _catalogEndpoint == _endpoint();
+}
+
+QVariantList DCLinkMissionEditor::launchEntries() const
+{
+    QVariantList entries;
+    if (!catalogReady()) {
+        return entries;
+    }
+    QMap<QString, int> names;
+    for (const QVariant& item : _catalog) {
+        ++names[item.toMap().value(QStringLiteral("name")).toString()];
+    }
+    for (const QVariant& item : _catalog) {
+        QVariantMap record = item.toMap();
+        if (!launchable(record)) {
+            continue;
+        }
+        QString label = record.value(QStringLiteral("name")).toString();
+        if (names.value(label) > 1) {
+            label = tr("%1 · %2").arg(label, record.value(QStringLiteral("mission_id")).toString().left(8));
+        }
+        const QString revision = record.value(QStringLiteral("revision")).toString();
+        record.insert(QStringLiteral("label"), tr("%1 · r%2").arg(label, revision));
+        entries.append(record);
+    }
+    return entries;
+}
+
 bool DCLinkMissionEditor::executionReviewRequired() const
 {
     const QString action = _pendingMutation.value(QStringLiteral("action")).toString();
@@ -157,25 +196,19 @@ int DCLinkMissionEditor::executionVehicleId() const
 
 QString DCLinkMissionEditor::startReason() const
 {
-    if (!hasDraft()) {
-        return tr("Choose a saved mission.");
-    }
-    if (dirty() || missionId().isEmpty()) {
-        return tr("Save the mission before starting.");
-    }
-    if (readOnly() || waypoints().isEmpty()) {
-        return readOnly() ? tr("This mission contains unsupported features.") : tr("Add a waypoint before starting.");
-    }
     if (reviewRequired() || !_storageError.isEmpty()) {
         return reviewRequired() ? tr("Review the previous request first.") : _storageError;
     }
-    if (!fresh() || !destinationMatches()) {
-        return tr("Refresh the library on this mission’s DCLink.");
+    if (busy()) {
+        return tr("Waiting for DCLink…");
     }
-    if (conflict()) {
-        return tr("Reload the current saved revision before starting.");
+    if (!catalogReady()) {
+        return tr("Refresh the DCLink mission list.");
     }
-    if (busy() || !_executionStatusFresh()) {
+    if (!executionSupported()) {
+        return tr("This DCLink does not support mission execution.");
+    }
+    if (!_executionStatusFresh()) {
         return tr("Waiting for mission status…");
     }
     if (ACTIVE_STATES.contains(_run.value(QStringLiteral("state")).toString()) && _runFresh()) {
@@ -241,8 +274,13 @@ bool DCLinkMissionEditor::canCancelRun() const
 void DCLinkMissionEditor::startMission(const QString& savedId, quint32 savedRevision, int vehicleId,
                                        const QString& session)
 {
-    if (!executionSupported() || !startReason().isEmpty() || savedId != missionId() || savedRevision != revision() ||
-        session != _client->serviceSession() || vehicleId < 1 || vehicleId != executionVehicleId()) {
+    const bool confirmedRevision = std::ranges::any_of(_catalog, [&](const QVariant& item) {
+        const QVariantMap record = item.toMap();
+        return record.value(QStringLiteral("mission_id")).toString() == savedId &&
+               record.value(QStringLiteral("revision")).toUInt() == savedRevision && launchable(record);
+    });
+    if (!startReason().isEmpty() || !confirmedRevision || session != _client->serviceSession() ||
+        vehicleId < 1 || vehicleId != executionVehicleId()) {
         _error = tr("The mission, connection or aircraft changed. Check readiness and confirm Start again.");
         emit changed();
         return;
@@ -330,8 +368,8 @@ void DCLinkMissionEditor::_executionFinished(const QString& action, const QStrin
         emit changed();
         return;
     } else if (action == START && (code == QStringLiteral("conflict") || code == QStringLiteral("not_found"))) {
-        _conflict = true;
-        _error = tr("The saved mission changed or was deleted. Reload the saved revision before starting.");
+        _invalidateCatalog();
+        _error = tr("The saved mission changed or was deleted. Refresh and choose a saved revision before starting.");
     } else {
         _error = explainReason(data.value(QStringLiteral("reason")).toString(), data);
     }

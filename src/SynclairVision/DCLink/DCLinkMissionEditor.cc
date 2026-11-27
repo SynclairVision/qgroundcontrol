@@ -75,7 +75,7 @@ DCLinkMissionEditor::DCLinkMissionEditor(DCLinkMissionClient* client, DigiviewMa
         if (!_client->available() || _verifiedEndpoint != _endpoint() ||
             _verifiedSession != _client->serviceSession()) {
             _verifiedSession.clear();
-            _reviewedCatalog = false;
+            _invalidateCatalog();
         }
         emit changed();
     });
@@ -198,7 +198,7 @@ QString DCLinkMissionEditor::saveReason() const
     }
     if (reviewRequired()) {
         if (executionReviewRequired()) {
-            return tr("Review the mission run before making another change.");
+            return tr("Review the mission request in Fly View.");
         }
         return tr(
             "The previous change may have been saved. Refresh and review the library before making another change.");
@@ -512,9 +512,17 @@ void DCLinkMissionEditor::refresh()
 {
     if (!busy()) {
         _verifiedSession.clear();
-        _reviewedCatalog = false;
+        _invalidateCatalog();
         _listRetries = 0;
         _send(QStringLiteral("missions.capabilities"), {}, QStringLiteral("discover"));
+    }
+}
+
+void DCLinkMissionEditor::_invalidateCatalog()
+{
+    if (_reviewedCatalog) {
+        _reviewedCatalog = false;
+        emit catalogChanged();
     }
 }
 
@@ -535,13 +543,17 @@ void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payl
         {QStringLiteral("request_id"), id},        {QStringLiteral("draft_id"), _draftId},
         {QStringLiteral("endpoint"), _endpoint()}, {QStringLiteral("session"), _client->serviceSession()},
         {QStringLiteral("process"), _processId}};
-    _reviewedCatalog = false;
+    const QString purpose = executionReviewRequired() ? QStringLiteral("execution") : QStringLiteral("mutation");
+    if (purpose == QStringLiteral("execution")) {
+        _pendingMutation.remove(QStringLiteral("draft_id"));
+    } else {
+        _invalidateCatalog();
+    }
     if (!_persist()) {
         _pendingMutation.clear();
         emit changed();
         return;
     }
-    const QString purpose = executionReviewRequired() ? QStringLiteral("execution") : QStringLiteral("mutation");
     if (!_send(action, payload, purpose, id)) {
         _pendingMutation.clear();
         _persist();
@@ -801,6 +813,7 @@ void DCLinkMissionEditor::_finished(const QString& id, const QString& action, co
             _catalog = _catalogPages;
             _catalogEndpoint = _endpoint();
             _reviewedCatalog = true;
+            emit catalogChanged();
         }
     } else if (purpose == QStringLiteral("load") || purpose == QStringLiteral("reload")) {
         _loadRecord(data);

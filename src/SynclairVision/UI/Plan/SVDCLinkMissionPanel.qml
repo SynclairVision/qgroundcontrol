@@ -15,16 +15,6 @@ Rectangle {
     readonly property real _margin: ScreenTools.defaultFontPixelHeight * 0.6
     readonly property bool _numericValid: latitudeField.valid && longitudeField.valid && altitudeField.valid
                                           && radiusField.valid
-    readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
-    readonly property string _startReason: {
-        if (editor.startReason.length > 0) {
-            return editor.startReason;
-        }
-        if (!_activeVehicle || _activeVehicle.id !== editor.executionVehicleId) {
-            return qsTr("Select the aircraft connected to this DCLink.");
-        }
-        return _activeVehicle.armed && _activeVehicle.flying ? "" : qsTr("The aircraft must already be airborne.");
-    }
     readonly property var _point: editor.selectedWaypoint >= 0 ? editor.waypoints[editor.selectedWaypoint] || ({}) : (
                                                                      {})
     property bool addingWaypoints: false
@@ -39,24 +29,6 @@ Rectangle {
         if (dialog) {
             dialog.accepted.connect(action);
         }
-    }
-
-    function confirmStart() {
-        if (_startReason.length > 0 || !_activeVehicle || !_numericValid) {
-            return;
-        }
-        addingWaypoints = false;
-        const missionId = editor.missionId;
-        const revision = editor.revision;
-        const vehicleId = _activeVehicle.id;
-        const session = SVBackend.missions.serviceSession;
-        const message = qsTr("Fly “%1” (revision %2) on aircraft %3?")
-            .arg(editor.mission.name).arg(revision).arg(vehicleId);
-        confirm(qsTr("Start mission"), message, function() {
-            if (root._activeVehicle && root._activeVehicle.id === vehicleId && root._startReason.length === 0) {
-                root.editor.startMission(missionId, revision, vehicleId, session);
-            }
-        });
     }
 
     function entryIndex() {
@@ -338,7 +310,7 @@ Rectangle {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                visible: root.editor.reviewRequired
+                visible: root.editor.reviewRequired && !root.editor.executionReviewRequired
 
                 QGCLabel {
                     Layout.fillWidth: true
@@ -357,17 +329,19 @@ Rectangle {
                 QGCButton {
                     Layout.fillWidth: true
                     enabled: root.editor.canAcknowledgeReview
-                    text: root.editor.executionReviewRequired ? qsTr("I have checked the aircraft…")
-                        : qsTr("I have reviewed the library…")
+                    text: qsTr("I have reviewed the library…")
 
-                    onClicked: {
-                        const message = root.editor.executionReviewRequired
-                            ? qsTr("Confirm you checked the aircraft and the latest mission status.")
-                            : qsTr("Confirm you checked the refreshed library. The previous change may already exist.")
-                        root.confirm(qsTr("Review unconfirmed request"), message,
-                                     function() { root.editor.acknowledgeReview() })
-                    }
+                    onClicked: root.confirm(qsTr("Review unconfirmed change"),
+                        qsTr("Confirm you checked the refreshed library. The previous change may already exist."),
+                        function() { root.editor.acknowledgeReview() })
                 }
+            }
+
+            QGCLabel {
+                Layout.fillWidth: true
+                visible: root.editor.executionReviewRequired
+                text: qsTr("Review the mission request in Fly View.")
+                wrapMode: Text.WordWrap
             }
 
             RowLayout {
@@ -530,25 +504,6 @@ Rectangle {
         anchors.right: parent.right
         spacing: root._margin * 0.5
 
-        RowLayout {
-            Layout.fillWidth: true
-            visible: root.editor.runText.length > 0
-
-            QGCLabel {
-                Layout.fillWidth: true
-                text: root.editor.runText
-                textFormat: Text.PlainText
-                wrapMode: Text.Wrap
-            }
-
-            QGCButton {
-                text: qsTr("Cancel run")
-                visible: root.editor.canCancelRun
-
-                onClicked: root.editor.cancelRun(root.editor.runId)
-            }
-        }
-
         QGCLabel {
             Layout.fillWidth: true
             font.pointSize: ScreenTools.smallFontPointSize
@@ -557,43 +512,21 @@ Rectangle {
             wrapMode: Text.WordWrap
         }
 
-        QGCLabel {
+        QGCButton {
             Layout.fillWidth: true
-            font.pointSize: ScreenTools.smallFontPointSize
-            text: root._startReason
-            textFormat: Text.PlainText
-            visible: root.editor.hasDraft && root.editor.executionSupported && !root.editor.dirty
-                && text.length > 0
-            wrapMode: Text.WordWrap
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
+            enabled: root.editor.canSave && root._numericValid
+            text: root.editor.busy ? qsTr("Working…") : qsTr("Save to DCLink")
             visible: root.editor.hasDraft
 
-            QGCButton {
-                Layout.fillWidth: true
-                enabled: root.editor.canSave && root._numericValid
-                text: root.editor.busy ? qsTr("Working…") : qsTr("Save to DCLink")
-
-                onClicked: {
-                    root.addingWaypoints = false;
-                    if (root.editor.missionId.length === 0) {
-                        const message = qsTr("Save “%1” to %2? Saving does not start a mission.")
-                            .arg(root.editor.mission.name).arg(root.editor.source)
-                        root.confirm(qsTr("Save new mission"), message, function() { root.editor.save() })
-                    } else {
-                        root.editor.save();
-                    }
+            onClicked: {
+                root.addingWaypoints = false;
+                if (root.editor.missionId.length === 0) {
+                    const message = qsTr("Save “%1” to %2? Saving does not start a mission.")
+                        .arg(root.editor.mission.name).arg(root.editor.source)
+                    root.confirm(qsTr("Save new mission"), message, function() { root.editor.save() })
+                } else {
+                    root.editor.save();
                 }
-            }
-
-            QGCButton {
-                enabled: root._startReason.length === 0 && root._numericValid
-                text: qsTr("Start mission")
-                visible: root.editor.executionSupported
-
-                onClicked: root.confirmStart()
             }
         }
     }

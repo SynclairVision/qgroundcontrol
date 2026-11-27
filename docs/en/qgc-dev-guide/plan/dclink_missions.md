@@ -129,12 +129,14 @@ content retained.
 ### Run a saved mission
 
 Use an armed, airborne PX4 multicopter in Hold or Position mode, with fresh
-HOME and global position. In **Plan → DCLink mission**, refresh the library,
-choose a nonempty saved revision and select the matching aircraft in QGC.
-Confirm **Start mission** to fly that revision. The confirmation names the
-route, revision and aircraft. The panel explains missing prerequisites.
+HOME and global position. Save the route in **Plan → DCLink mission**. In the
+map-side **Fly View** command panel, open **DCLink Mission**, choose a saved
+route, and select **Start mission…**. Review the name, revision, and aircraft
+before selecting **Confirm Start**. The picker uses the current DCLink library
+and leaves the Plan draft alone. If the saved revision changes or is deleted,
+refresh and choose a saved revision again.
 
-The panel and Fly View strip show the running mission, revision and waypoint
+The Fly View mission panel and status strip show the running mission, revision and waypoint
 progress separately from the draft. New saves affect the shared library, and an
 admitted run continues with the original route. **Cancel run** requests Hold
 for that run. The existing flight controls also remain available. The panel
@@ -276,7 +278,7 @@ command is silently replaced by a convenient value.
 | No source selected | Edit a local draft; explain that read/save require a selected service. |
 | Connected, empty library | Show **New**; the first save creates the first mission. |
 | Loading | Show loading beside the picker/editor; preserve the draft until a complete result arrives. |
-| Saved, no edits | Show the confirmed revision. Start is available when the matching aircraft and runtime are ready. |
+| Saved, no edits | Show the confirmed revision. Fly View can start it when the matching aircraft and runtime are ready. |
 | Local edits | Show **Unsaved changes**; save needs a valid draft and fresh compatible service. |
 | Stale/disconnected source | Show last-known library/revision; retain edits; disable remote save/start with a reason. |
 | Leaving a dirty draft | Offer **Keep draft**, **Discard** or **Cancel** before switching context. |
@@ -284,7 +286,7 @@ command is silently replaced by a convenient value.
 | Save reply lost | Show outcome unknown; retain draft and request identity while reconciling. |
 | Unsupported import | List rejected items/frames; preserve the existing draft and saved mission. |
 | Editing while running | Show saved/draft and running revisions separately; save never changes the run. |
-| Start unavailable | Keep authoring available and show the missing prerequisite in the mission panel. |
+| Start unavailable | Keep authoring available and show the missing prerequisite in the Fly View mission panel. |
 
 Local drafts must survive application restart and remain distinct from confirmed
 DCLink revisions. Reopening a draft requires a fresh comparison with its service

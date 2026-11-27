@@ -63,8 +63,20 @@ Item {
     }
 
     onVisibleChanged: {
-        if (!visible)
+        if (!visible) {
             expanded = false
+            if (missionPopup)
+                missionPopup.close()
+        }
+    }
+
+    onFavoritesOnlyChanged: {
+        if (favoritesOnly && missionPopup)
+            missionPopup.close()
+    }
+
+    SVDCLinkMissionPopup {
+        id: missionPopup
     }
 
     SVBackground {
@@ -122,6 +134,15 @@ Item {
                     Layout.fillWidth: true
                     action: modelData
                 }
+            }
+
+            SVDCLinkButton {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                text: qsTr("DCLink Mission")
+                visible: !root.favoritesOnly
+
+                onClicked: missionPopup.open()
             }
 
             QGCLabel {

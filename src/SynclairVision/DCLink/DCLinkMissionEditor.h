@@ -43,6 +43,8 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QString saveReason READ saveReason NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY changed)
     Q_PROPERTY(bool executionSupported READ executionSupported NOTIFY changed)
+    Q_PROPERTY(bool catalogReady READ catalogReady NOTIFY catalogChanged)
+    Q_PROPERTY(QVariantList launchEntries READ launchEntries NOTIFY catalogChanged)
     Q_PROPERTY(bool executionReviewRequired READ executionReviewRequired NOTIFY changed)
     Q_PROPERTY(int executionVehicleId READ executionVehicleId NOTIFY changed)
     Q_PROPERTY(QString startReason READ startReason NOTIFY changed)
@@ -87,6 +89,8 @@ public:
     QString error() const { return _error; }
 
     bool executionSupported() const;
+    bool catalogReady() const;
+    QVariantList launchEntries() const;
     bool executionReviewRequired() const;
     int executionVehicleId() const;
     QString startReason() const;
@@ -123,6 +127,7 @@ public:
 
 signals:
     void changed();
+    void catalogChanged();
     void routeLoaded();
 
 private:
@@ -138,6 +143,7 @@ private:
     void _mutate(const QString& action, const QVariantMap& payload);
     void _finished(const QString& id, const QString& action, const QVariantMap& result);
     void _listPage(const QString& cursor = {});
+    void _invalidateCatalog();
     void _loadRecord(const QVariantMap& record);
     void _applyMutation(const QVariantMap& data);
     bool _executionStatusFresh() const;
