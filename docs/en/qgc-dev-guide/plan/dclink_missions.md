@@ -4,13 +4,19 @@ This document defines the QGC planning workflow. The shared mission format,
 DCLink library, MAVLink client and QGC route editor are implemented. Rules,
 behavior areas and mission execution remain subsequent deliveries.
 
-DCLink owns the saved mission library. QGC and Maintenance are clients of the
-same service, so either client can create and edit a mission without the other
-being present. The canonical data model and API belong in the shared
+DCLink owns the saved mission library. QGC and Maintenance use the same SQLite
+library, so either client can create and edit a mission without the other being
+present. QGC uses the running DCLink service over MAVLink; Maintenance invokes
+DCLink's installed local filesystem helper without a runtime connection.
+Helper edits are visible on QGC's next read/Refresh, with revision conflicts
+preserving local work. Committed missions survive runtime shutdown; Maintenance
+can still load and save while DCLink is stopped if WebMenu and the computer
+remain running. QGC retains its local drafts until remote access returns.
+The canonical data model and API belong in the shared
 [mission contract](https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/README.md)
 and [mission schema][schema].
 This page specifies QGC interaction and state handling without redefining those
-contracts. Both consumers pin matching message definitions.
+contracts. QGC and DCLink pin matching MAVLink definitions.
 
 [schema]: https://github.com/SynclairVision/message-definitions/blob/dev-0.8-qgc-missions/missions/mission.schema.json
 
