@@ -27,6 +27,18 @@ Item {
     property var visibleCameraSlots: []
     property bool cursorTargetingAvailable: false
     readonly property var settingsModel: SVFlyViewMenusList.getSettingsModel()
+    readonly property bool commandPlacementBlocked: visible && activeSettingsId.length > 0
+    readonly property var commandAvoidanceRects: {
+        const rectangles = menus.commandAvoidanceRects.map((rect) =>
+            Qt.rect(menus.x + rect.x, menus.y + rect.y, rect.width, rect.height))
+        const items = [controlPanel, recordInfoBox, notificationBox]
+        for (let i = 0; i < items.length; ++i) {
+            const item = items[i]
+            if (item.visible && item.width > 0 && item.height > 0)
+                rectangles.push(Qt.rect(item.x, item.y, item.width, item.height))
+        }
+        return rectangles
+    }
 
     property bool uiInteractionEnabled: SVState.uiInteractionEnabled
 
@@ -151,6 +163,8 @@ Item {
     }
 
     SVFlyViewMenus {
+        id: menus
+
         anchors.fill: parent
 
         leftToolStripBottom: root.leftToolStripBottom

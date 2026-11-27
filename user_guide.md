@@ -93,6 +93,53 @@ Per-view overlays are available for the active camera.
 
 ---
 
+### 2.6 DCLink pilot commands
+
+With the SynclairVision overlay enabled, a compact status strip stays visible
+above the command panel on the map and over the main video view. It shows the
+DCLink connection, current command, target state, and navigation source and health.
+It wraps to additional rows on smaller displays. Status remains visible when
+the command panel is collapsed; the strip itself does not issue commands.
+Missing or stale DCLink status shows unavailable values. Navigation health
+reports DCLink's status and does not indicate who controls the aircraft.
+Enabling the overlay preserves the current map/video layout, including when
+the welcome dialog is shown for the first time.
+
+With the SynclairVision overlay enabled, switch to the map and open **DCLink**.
+Opening or closing this menu only changes its visibility. Select an action explicitly to send a command.
+
+| Action | Copter | Plane |
+| --- | --- | --- |
+| Cancel | Request safe cancellation | Request safe cancellation |
+| Hold | Hold | Loiter |
+| Mission | Run DCLink's stored route | Unavailable |
+| Follow Target / Intercept | Follow Target | Intercept |
+| Target Loiter | Target Loiter | Target Loiter |
+
+Follow, Intercept and Target Loiter use the target currently observed by DCLink.
+Mission uses DCLink's stored route and its onboard target-follow handoff behavior.
+The menu does not select map coordinates or change command parameters.
+
+DCLink shares the selected DigiView profile's MAVLink UDP connection and works without video decoding.
+The Maintenance router exposes this connection on port **14570**; DCLink uses its onboard endpoint on port **14880**.
+The legacy TCP control fallback does not carry DCLink commands.
+Aircraft telemetry must arrive on the shared connection. If QGC has an active aircraft, its system ID must match.
+Commands are unavailable when multiple aircraft appear on the same bus, since the DCLink messages have no destination.
+Use one operator client on this bus; do not run a second command client alongside QGC.
+
+The menu shows the aircraft type, current command, target status and request feedback.
+Only commands returned by DCLink and included in this menu are available.
+An accepted request is not confirmation of flight completion.
+Requests are sent once. If an acknowledgement is missing, QGC reports an unknown outcome and refreshes current status;
+it never resends a command after a timeout or reconnect. Check the reported state before selecting another action.
+
+QGC and DCLink must use matching `DCLINK_STATUS`, `DCLINK_COMMAND` and
+`DCLINK_PARAMETER` definitions from the same pinned message-definitions revision.
+Update both applications together. The shared wire contract is documented in
+`message-definitions/dclink-mavlink.md` in the source checkout.
+
+---
+
 ## 3. Recording and photos
 
 ### 3.1 Recording

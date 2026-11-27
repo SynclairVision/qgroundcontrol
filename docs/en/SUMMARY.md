@@ -11,6 +11,7 @@
   - [Fly Tools](qgc-user-guide/fly_view/fly_tools.md)
   - [Instrument Panel](qgc-user-guide/fly_view/instrument_panel.md)
   - [Attitude/Compass](qgc-user-guide/fly_view/hud.md)
+  - [DCLink Target Views](qgc-user-guide/fly_view/dclink.md)
   - [Camera & Video](qgc-user-guide/fly_view/camera_tools.md)
     - [Video](qgc-user-guide/fly_view/video.md)
     - [Video Overlay](qgc-user-guide/fly_view/video_overlay.md)

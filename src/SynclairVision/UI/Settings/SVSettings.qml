@@ -22,6 +22,13 @@ QtObject {
         aiScanModelDraft: "",
         simplifiedUserInterface: false,
         alignHud: true,
+        dclinkTargetRadarSelected: false,
+        dclinkTargetPlotExpanded: true,
+        dclinkMapRangeRings: false,
+        dclinkRadarHeadingUp: false,
+        dclinkFavoriteCommands: ["cancel"],
+        dclinkVideoCommandsVisible: false,
+        dclinkVideoCommandsPosition: "Top-right",
         compassType: "horizontal",
         compassSize: 100,
         networkIPAdress: "192.168.4.60",
@@ -134,6 +141,13 @@ QtObject {
         property alias controlPanel: root.controlPanel
         property alias simplifiedUserInterface: root.simplifiedUserInterface
         property alias alignHud: root.alignHud
+        property alias dclinkTargetRadarSelected: root.dclinkTargetRadarSelected
+        property alias dclinkTargetPlotExpanded: root.dclinkTargetPlotExpanded
+        property alias dclinkMapRangeRings: root.dclinkMapRangeRings
+        property alias dclinkRadarHeadingUp: root.dclinkRadarHeadingUp
+        property alias dclinkFavoriteCommands: root.dclinkFavoriteCommands
+        property alias dclinkVideoCommandsVisible: root.dclinkVideoCommandsVisible
+        property alias dclinkVideoCommandsPosition: root.dclinkVideoCommandsPosition
         property alias compassType: root.compassType
         property alias compassSize: root.compassSize
         property alias controlPanelPosition: root.controlPanelPosition
@@ -512,6 +526,10 @@ QtObject {
         onNetworkProfilesChanged: syncSelectedNetworkProfileState()
         onNetworkSelectedProfileIndexChanged: syncSelectedNetworkProfileState()
         Component.onCompleted: {
+            // Preserve saved empty lists; only a missing setting gets the default favorites.
+            if (persistedSettings.value("dclinkFavoriteCommands", "__missing__") === "__missing__") {
+                dclinkFavoriteCommands = resetDefaults.dclinkFavoriteCommands.slice()
+            }
             setNetworkProfiles(networkProfiles ? networkProfiles.slice() : [], networkSelectedProfileIndex)
             migrateShortcutsIfNeeded()
         }
@@ -525,6 +543,13 @@ QtObject {
 //---------------------------------
     property bool simplifiedUserInterface: false
     property bool alignHud: true
+    property bool dclinkTargetRadarSelected: false
+    property bool dclinkTargetPlotExpanded: true
+    property bool dclinkMapRangeRings: false
+    property bool dclinkRadarHeadingUp: false
+    property var dclinkFavoriteCommands: []
+    property bool dclinkVideoCommandsVisible: false
+    property string dclinkVideoCommandsPosition: "Top-right"
     property string compassType: "horizontal"
     property int compassSize: 100
 

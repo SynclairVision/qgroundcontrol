@@ -27,6 +27,16 @@ Item {
     readonly property bool hasCurrentVideoOutputParameters: digiviewActive
         && digiview.hasVideoOutputParameters
         && digiview.videoOutputStreamName === digiview.streamName
+    readonly property var commandAvoidanceRects: {
+        const items = [settingsMenu, oneshots, aiDetectionOverlay, lockTarget, tracking, layout, overlays, lockButton]
+        const rectangles = []
+        for (let i = 0; i < items.length; ++i) {
+            const item = items[i]
+            if (item.visible && item.width > 0 && item.height > 0)
+                rectangles.push(Qt.rect(item.x, item.y, item.width, item.height))
+        }
+        return rectangles
+    }
 
     function setLayout(layoutId) {
         if (!root.digiviewActive) {

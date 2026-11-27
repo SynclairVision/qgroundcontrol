@@ -6,6 +6,7 @@
 #include <QtQml/QQmlApplicationEngine>
 
 #include "DigiviewManager.h"
+#include "DCLinkManager.h"
 #include "MultiVehicleManager.h"
 #include "SVBackend.h"
 #include "Vehicle.h"
@@ -20,6 +21,13 @@ CustomPlugin::CustomPlugin(QObject* parent)
 {
     _toolBarIndicators.prepend(QVariant::fromValue(
         QUrl(QStringLiteral("qrc:/qml/QGroundControl/SynclairVisionUI/Flyview/SVFlyViewToolbarIndicator.qml"))));
+
+    auto* vehicles = MultiVehicleManager::instance();
+    const auto* activeVehicle = vehicles->activeVehicle();
+    _backend->dclink()->setSelectedVehicleId(activeVehicle ? activeVehicle->id() : 0);
+    connect(vehicles, &MultiVehicleManager::activeVehicleChanged, this, [this](Vehicle* vehicle) {
+        _backend->dclink()->setSelectedVehicleId(vehicle ? vehicle->id() : 0);
+    });
 
     (void) connect(MultiVehicleManager::instance(), &MultiVehicleManager::vehicleAdded,
                    this, &CustomPlugin::_connectVehicle);

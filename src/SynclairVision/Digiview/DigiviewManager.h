@@ -125,6 +125,7 @@ public:
     QString streamName() const { return _streamName; }
     int senderSystemId() const { return _senderSystemId; }
     int senderComponentId() const { return _senderComponentId; }
+    DigiviewConnection* connection() const { return _connection; }
     bool hasAIParameters() const { return _hasAIParameters; }
     bool aiEnabled() const { return _aiEnabled; }
     QString selectedScanModel() const { return _selectedScanModel; }

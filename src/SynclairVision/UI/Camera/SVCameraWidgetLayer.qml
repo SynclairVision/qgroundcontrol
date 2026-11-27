@@ -27,6 +27,20 @@ Item {
     property int  cameraSlot
     property int index
     readonly property real compassScale: SVSettings.compassSize / 100
+    readonly property var commandAvoidanceRects: {
+        const rectangles = []
+        if (!visible)
+            return rectangles
+        const compass = compassLoader.item
+        if (compass && compass.visible) {
+            const bounds = compass.commandBounds
+            rectangles.push(Qt.rect(compassLoader.x + compass.x + bounds.x,
+                                    compassLoader.y + compass.y + bounds.y, bounds.width, bounds.height))
+        }
+        if (detectionFlag.visible)
+            rectangles.push(Qt.rect(detectionFlag.x, detectionFlag.y, detectionFlag.width, detectionFlag.height))
+        return rectangles
+    }
 
     QGCPalette { id: qgcPalette }
 
@@ -93,6 +107,8 @@ Item {
     onCameraSlotChanged: resetCameraOverrides()
 
     Loader {
+        id: compassLoader
+
         anchors.right:  parent.right
         anchors.bottom: parent.bottom
 
@@ -114,6 +130,10 @@ Item {
         id: horizontalCompassComponent
 
         SVBackground {
+            id: horizontalCompass
+
+            readonly property rect commandBounds: Qt.rect(0, 0, horizontalCompass.width, horizontalCompass.height)
+
             width:  attitude.width + compass.width + SVUnits.bigMargin * 3
             height: Math.max(attitude.height, compass.height) + SVUnits.bigMargin * 2
 
@@ -152,6 +172,10 @@ Item {
         id: verticalCompassComponent
 
         SVBackground {
+            id: verticalCompass
+
+            readonly property rect commandBounds: Qt.rect(0, 0, verticalCompass.width, verticalCompass.height)
+
             width:  Math.max(attitude.width, compass.width) + SVUnits.bigMargin * 2
             height: attitude.height + compass.height + SVUnits.bigMargin * 3
 
@@ -190,6 +214,11 @@ Item {
         id: combinedCompassComponent
 
         Item {
+            readonly property rect commandBounds: Qt.rect(combinedWidget.x - combinedWidget.totalAttitudeSize,
+                combinedWidget.y - combinedWidget.totalAttitudeSize,
+                combinedWidget.width + combinedWidget.totalAttitudeSize * 2,
+                combinedWidget.height + combinedWidget.totalAttitudeSize * 2)
+
             // Container bound matching the horizontal/vertical backgrounds
             width:  SVUnits.objectWidth * root.compassScale
             height: SVUnits.objectWidth * root.compassScale

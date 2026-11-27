@@ -17,6 +17,25 @@ Item {
     clip: true
 
     property alias videoContentAreaItem: videoContentArea
+    readonly property rect commandToolsRect: Qt.rect(widgetLayer.x, widgetLayer.y,
+                                                    widgetLayer.width, widgetLayer.height)
+    readonly property bool commandPlacementBlocked: widgetLayer.commandPlacementBlocked
+    // Export occupied controls in video coordinates, including aligned HUD offsets.
+    readonly property var commandAvoidanceRects: {
+        const rectangles = widgetLayer.commandAvoidanceRects.map((rect) =>
+            Qt.rect(widgetLayer.x + rect.x, widgetLayer.y + rect.y, rect.width, rect.height))
+        if (videoContentArea.visible) {
+            for (const cameraLayer of cameraLayerRepeater.cameraLayers) {
+                if (!cameraLayer || !cameraLayer.visible)
+                    continue
+                for (const rect of cameraLayer.commandAvoidanceRects) {
+                    rectangles.push(Qt.rect(videoContentArea.x + cameraLayer.x + rect.x,
+                                            videoContentArea.y + cameraLayer.y + rect.y, rect.width, rect.height))
+                }
+            }
+        }
+        return rectangles
+    }
     // Once connected, the remote VIDEO_OUTPUT_PARAMETERS state is authoritative.
     // The settings value is only a draft used while editing or awaiting refresh.
     property var detectionPosition: SVState.effectiveAiDetectionOverlayPosition
@@ -26,6 +45,7 @@ Item {
     property var parentToolInsets
     property real leftToolStripBottom: 0
     property bool previewMode: false
+    property real statusStripInset: 0
 
     property int _widgetMargin: 0
     property int _toolBarHeight: 0
@@ -260,6 +280,10 @@ Item {
         Repeater {
             id: cameraLayerRepeater
             model: root.digiviewCameraViews
+            property var cameraLayers: []
+
+            onItemAdded: (_index, item) => cameraLayers = cameraLayers.concat([item])
+            onItemRemoved: (_index, item) => cameraLayers = cameraLayers.filter((layer) => layer !== item)
 
             delegate: SVCameraLayer {
                 required property var modelData
@@ -350,7 +374,9 @@ Item {
         anchors.rightMargin: _widgetMargin + ((adjustHud && (detectionPosition === "ColumnRight" || detectionPosition === "Single")) ? detectionOverlay.width : 0)
         anchors.bottomMargin: _widgetMargin + ((adjustHud && detectionPosition === "RowBottom") ? detectionOverlay.height : 0)
         //anchors.topMargin: _widgetMargin + (adjustHud ? (Math.max(Math.max(toolbarInset, heightOffset), adjustHud && detectionPosition === "RowTop" ? detectionOverlay.height : 0)
-        anchors.topMargin: _widgetMargin + (adjustHud ? (Math.max(Math.max(0, toolbarInset - heightOffset), adjustHud && detectionPosition === "RowTop" ? detectionOverlay.height : 0)) : toolbarInset)
+        anchors.topMargin: _widgetMargin + root.statusStripInset
+            + (adjustHud ? (Math.max(Math.max(0, toolbarInset - heightOffset),
+                                    detectionPosition === "RowTop" ? detectionOverlay.height : 0)) : toolbarInset)
         offsetX: adjustHud ? (anchors.rightMargin - _widgetMargin + Math.floor(widthOffset)) : 0
         //offsetY: SVUnits.objectWidth + toolbarInset + (adjustHud ? Math.max(Math.max(toolbarInset, heightOffset), detectionPosition === "RowTop" ? detectionOverlay.height : 0)
         offsetY: SVUnits.objectWidth + (adjustHud ? (Math.max(Math.max(toolbarInset, heightOffset) - toolbarInset, detectionPosition === "RowTop")) : 0)
