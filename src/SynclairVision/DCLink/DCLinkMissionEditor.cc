@@ -79,6 +79,8 @@ DCLinkMissionEditor::DCLinkMissionEditor(DCLinkMissionClient* client, DigiviewMa
         }
         emit changed();
     });
+    connect(&_runPoll, &QTimer::timeout, this, &DCLinkMissionEditor::_pollRunStatus);
+    _runPoll.start(1000);
 }
 
 QVariantMap DCLinkMissionEditor::_endpoint() const
@@ -133,7 +135,7 @@ bool DCLinkMissionEditor::readOnly() const
 
 bool DCLinkMissionEditor::busy() const
 {
-    return !_requestId.isEmpty() || _client->busy();
+    return !_requestId.isEmpty() || (_client->busy() && !_client->readingRunStatus());
 }
 
 bool DCLinkMissionEditor::canEdit() const
@@ -195,6 +197,9 @@ QString DCLinkMissionEditor::saveReason() const
         return tr("Waiting for DCLink…");
     }
     if (reviewRequired()) {
+        if (executionReviewRequired()) {
+            return tr("Review the mission run before making another change.");
+        }
         return tr(
             "The previous change may have been saved. Refresh and review the library before making another change.");
     }
@@ -536,7 +541,8 @@ void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payl
         emit changed();
         return;
     }
-    if (!_send(action, payload, QStringLiteral("mutation"), id)) {
+    const QString purpose = executionReviewRequired() ? QStringLiteral("execution") : QStringLiteral("mutation");
+    if (!_send(action, payload, purpose, id)) {
         _pendingMutation.clear();
         _persist();
     }
@@ -580,7 +586,7 @@ void DCLinkMissionEditor::deleteMission()
 
 bool DCLinkMissionEditor::canRetry() const
 {
-    return !busy() && fresh() && reviewRequired() &&
+    return !busy() && fresh() && reviewRequired() && !executionReviewRequired() &&
            _pendingMutation.value(QStringLiteral("process")).toString() == _processId &&
            _pendingMutation.value(QStringLiteral("session")).toString() == _client->serviceSession() &&
            _pendingMutation.value(QStringLiteral("endpoint")).toMap() == _endpoint();
@@ -607,7 +613,8 @@ void DCLinkMissionEditor::acknowledgeReview()
 
 bool DCLinkMissionEditor::canAcknowledgeReview() const
 {
-    return !busy() && fresh() && reviewRequired() && _reviewedCatalog &&
+    return !busy() && fresh() && reviewRequired() &&
+           (executionReviewRequired() ? _executionStatusFresh() : _reviewedCatalog) &&
            _pendingMutation.value(QStringLiteral("endpoint")).toMap() == _endpoint();
 }
 
@@ -615,6 +622,10 @@ QString DCLinkMissionEditor::reviewDescription() const
 {
     if (!reviewRequired()) {
         return {};
+    }
+    if (executionReviewRequired()) {
+        return tr("Mission command outcome unknown at %1. Check the aircraft and current run before continuing.")
+            .arg(endpointText(_pendingMutation.value(QStringLiteral("endpoint")).toMap()));
     }
     return tr("Unconfirmed change at %1. Refresh that library and inspect its saved missions before continuing.")
         .arg(endpointText(_pendingMutation.value(QStringLiteral("endpoint")).toMap()));
@@ -698,8 +709,15 @@ void DCLinkMissionEditor::_applyMutation(const QVariantMap& data)
     _persist();
 }
 
-void DCLinkMissionEditor::_finished(const QString& id, const QString&, const QVariantMap& result)
+void DCLinkMissionEditor::_finished(const QString& id, const QString& action, const QVariantMap& result)
 {
+    if (id == _runStatusRequest) {
+        _runStatusRequest.clear();
+        if (result.value(QStringLiteral("result")).toString() == QStringLiteral("ok")) {
+            _receiveRunStatus(result.value(QStringLiteral("data")).toMap());
+        }
+        return;
+    }
     if (id != _requestId) {
         return;
     }
@@ -709,6 +727,10 @@ void DCLinkMissionEditor::_finished(const QString& id, const QString&, const QVa
     _requestId.clear();
     const QString code = result.value(QStringLiteral("result")).toString();
     const QVariantMap data = result.value(QStringLiteral("data")).toMap();
+    if (purpose == QStringLiteral("execution")) {
+        _executionFinished(action, code, data);
+        return;
+    }
     if (code != QStringLiteral("ok")) {
         if (purpose == QStringLiteral("list") && code == QStringLiteral("conflict") && _listRetries++ == 0) {
             _catalogPages.clear();
@@ -876,6 +898,8 @@ void DCLinkMissionEditor::_restore()
     }
     _pendingMutation = root.value(QStringLiteral("pending_change")).toObject().toVariantMap();
     if (!_pendingMutation.isEmpty()) {
-        _error = tr("QGC closed with an unconfirmed change. Refresh and review the saved library before continuing.");
+        _error = executionReviewRequired()
+            ? tr("QGC closed with an unconfirmed mission command. Check the aircraft and refresh the mission status.")
+            : tr("QGC closed with an unconfirmed change. Refresh and review the saved library before continuing.");
     }
 }

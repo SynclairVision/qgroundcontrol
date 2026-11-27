@@ -95,7 +95,8 @@ bool knownAction(const QString& action)
     static const QStringList actions = {
         QStringLiteral("missions.capabilities"), QStringLiteral("missions.list"),   QStringLiteral("missions.get"),
         QStringLiteral("missions.create"),       QStringLiteral("missions.update"), QStringLiteral("missions.delete"),
-        QStringLiteral("missions.import_route"),
+        QStringLiteral("missions.import_route"), QStringLiteral("missions.start"), QStringLiteral("missions.cancel"),
+        QStringLiteral("missions.run_status"),
     };
     return actions.contains(action);
 }
@@ -138,6 +139,11 @@ bool DCLinkMissionClient::busy() const
     return _phase != Phase::Idle;
 }
 
+bool DCLinkMissionClient::readingRunStatus() const
+{
+    return busy() && _action == QStringLiteral("missions.run_status");
+}
+
 QString DCLinkMissionClient::serviceSession() const
 {
     return _session.isEmpty() ? QString() : uuidText(_session);
@@ -165,6 +171,9 @@ QString DCLinkMissionClient::request(const QString& action, const QVariantMap& p
 {
     if (_finishing) {
         return {};
+    }
+    if (readingRunStatus() && action != QStringLiteral("missions.run_status")) {
+        _fail({}, false);
     }
     const bool discovery = action == QStringLiteral("missions.capabilities");
     if (busy() || !_transportReady() || !knownAction(action) || (!discovery && !available())) {
@@ -199,7 +208,8 @@ QString DCLinkMissionClient::request(const QString& action, const QVariantMap& p
         return {};
     }
     const bool mutation = action != QStringLiteral("missions.capabilities") &&
-                          action != QStringLiteral("missions.list") && action != QStringLiteral("missions.get");
+                          action != QStringLiteral("missions.list") && action != QStringLiteral("missions.get") &&
+                          action != QStringLiteral("missions.run_status");
     const QJsonObject bindingData{
         {QStringLiteral("host"), _digiview->host()},
         {QStringLiteral("port"), _digiview->port()},

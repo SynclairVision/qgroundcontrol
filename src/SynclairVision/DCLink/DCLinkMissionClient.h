@@ -35,6 +35,7 @@ public:
 
     bool available() const;
     bool busy() const;
+    bool readingRunStatus() const;
 
     bool outcomeUnknown() const { return _outcomeUnknown; }
 

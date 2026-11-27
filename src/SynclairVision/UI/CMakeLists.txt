@@ -22,6 +22,7 @@ qt_add_qml_module(SynclairVisionUIModule
         ../DCLink/DCLinkMissionClient.h
         ../DCLink/DCLinkMissionEditor.cc
         ../DCLink/DCLinkMissionEditor.h
+        ../DCLink/DCLinkMissionExecution.cc
         ../DCLink/DCLinkMissionJson.cc
         ../DCLink/DCLinkMissionJson.h
         ../DCLink/DCLinkMissionPlanImport.cc

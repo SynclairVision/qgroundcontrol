@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QMap>
 #include <QtCore/QObject>
+#include <QtCore/QTimer>
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
@@ -40,6 +42,14 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString saveReason READ saveReason NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY changed)
+    Q_PROPERTY(bool executionSupported READ executionSupported NOTIFY changed)
+    Q_PROPERTY(bool executionReviewRequired READ executionReviewRequired NOTIFY changed)
+    Q_PROPERTY(int executionVehicleId READ executionVehicleId NOTIFY changed)
+    Q_PROPERTY(QString startReason READ startReason NOTIFY changed)
+    Q_PROPERTY(QString runId READ runId NOTIFY changed)
+    Q_PROPERTY(QString runText READ runText NOTIFY changed)
+    Q_PROPERTY(QString flightRunText READ flightRunText NOTIFY changed)
+    Q_PROPERTY(bool canCancelRun READ canCancelRun NOTIFY changed)
     Q_PROPERTY(int selectedWaypoint READ selectedWaypoint WRITE setSelectedWaypoint NOTIFY changed)
 
 public:
@@ -76,6 +86,15 @@ public:
 
     QString error() const { return _error; }
 
+    bool executionSupported() const;
+    bool executionReviewRequired() const;
+    int executionVehicleId() const;
+    QString startReason() const;
+    QString runId() const;
+    QString runText() const;
+    QString flightRunText() const;
+    bool canCancelRun() const;
+
     int selectedWaypoint() const { return _selectedWaypoint; }
 
     void setSelectedWaypoint(int index);
@@ -94,6 +113,9 @@ public:
     Q_INVOKABLE void save();
     Q_INVOKABLE void reload();
     Q_INVOKABLE void deleteMission();
+    Q_INVOKABLE void startMission(const QString& savedId, quint32 savedRevision, int vehicleId,
+                                  const QString& session);
+    Q_INVOKABLE void cancelRun(const QString& expectedRunId);
     Q_INVOKABLE void retryChange();
     Q_INVOKABLE void acknowledgeReview();
     Q_INVOKABLE QVariantMap previewPlan(const QString& path, double defaultRadius);
@@ -118,6 +140,11 @@ private:
     void _listPage(const QString& cursor = {});
     void _loadRecord(const QVariantMap& record);
     void _applyMutation(const QVariantMap& data);
+    bool _executionStatusFresh() const;
+    bool _runFresh() const;
+    void _pollRunStatus();
+    void _receiveRunStatus(const QVariantMap& data);
+    void _executionFinished(const QString& action, const QString& code, const QVariantMap& data);
 
     DCLinkMissionClient* const _client;
     DigiviewManager* const _digiview;
@@ -141,4 +168,14 @@ private:
     bool _reviewedCatalog = false;
     int _listRetries = 0;
     int _selectedWaypoint = -1;
+    QTimer _runPoll;
+    QElapsedTimer _runReportAge;
+    QElapsedTimer _runRequestAge;
+    QString _runStatusRequest;
+    QVariantMap _executionStatus;
+    QVariantMap _runEndpoint;
+    QString _runServiceSession;
+    QVariantMap _run;
+    QVariantMap _executionEndpoint;
+    QString _executionServiceSession;
 };

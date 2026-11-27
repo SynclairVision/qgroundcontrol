@@ -1,8 +1,8 @@
 # DCLink mission planning
 
-This document defines the QGC planning workflow. The shared mission format,
-DCLink library, MAVLink client and QGC route editor are implemented. Rules,
-behavior areas and mission execution remain subsequent deliveries.
+QGC can edit, save and start named DCLink waypoint routes. The editor reads
+shared saved revisions over MAVLink. The running DCLink planner admits and
+tracks each execution.
 
 DCLink owns the saved mission library. QGC and Maintenance use the same SQLite
 library, so either client can create and edit a mission without the other being
@@ -40,8 +40,8 @@ selects a different explicit nonzero peer and clears its discovered session.
   and `outcomeUnknown` supply asynchronous state. Availability requires verified
   discovery, not an aircraft heartbeat.
 
-Discovery and all reads are explicit; the client does not poll or start missions
-automatically. The [wire profile][wire] defines addressed chunks, integrity,
+Library discovery, listing and loading are explicit. After discovery, QGC polls
+execution status when advertised. The [wire profile][wire] defines addressed chunks, integrity,
 session binding, stop-and-wait exchange retries and limits. Endpoint, sender or
 peer changes cancel the current exchange without sending its content elsewhere.
 No mission content is exposed until its complete reply is validated.
@@ -117,14 +117,34 @@ pages, restarting once if another client changes it during paging. At most
 reported without replacing the previous catalog.
 
 Before a mutation is sent, its identity, complete payload, destination and
-service boot are retained locally. Uncertain changes keep these details through
+service boot are retained locally. Uncertain saves keep these details through
 reconnects and restart, and block other mutations. **Retry original change** is
 offered only in the same QGC process, source and DCLink boot. After either
 application restarts, refresh and inspect the relevant saved library; explicitly
 acknowledge that review before resuming edits. Discovery or a library read never
 replays the mutation. A revision conflict offers **Reload** with confirmation or
 **Save as copy**. Unsupported documents remain read only with their complete
-content retained. Save never starts execution; there is no Start action yet.
+content retained.
+
+### Run a saved mission
+
+Use an armed, airborne PX4 multicopter in Hold or Position mode, with fresh
+HOME and global position. In **Plan → DCLink mission**, refresh the library,
+choose a nonempty saved revision and select the matching aircraft in QGC.
+Confirm **Start mission** to fly that revision. The confirmation names the
+route, revision and aircraft. The panel explains missing prerequisites.
+
+The panel and Fly View strip show the running mission, revision and waypoint
+progress separately from the draft. New saves affect the shared library, and an
+admitted run continues with the original route. **Cancel run** requests Hold
+for that run. The existing flight controls also remain available. The panel
+reports completion after the final waypoint and confirmed Hold.
+
+If status is lost, the strip shows that the run state is unknown. Refresh to
+rediscover the runtime and review current status. For a lost Start or Cancel
+reply, QGC reconciles a matching run report from the original service session,
+or asks the operator to verify the aircraft and confirm review. A new Start
+requires a new operator confirmation.
 
 ### Manual verification
 
@@ -256,7 +276,7 @@ command is silently replaced by a convenient value.
 | No source selected | Edit a local draft; explain that read/save require a selected service. |
 | Connected, empty library | Show **New**; the first save creates the first mission. |
 | Loading | Show loading beside the picker/editor; preserve the draft until a complete result arrives. |
-| Saved, no edits | Show confirmed revision; Save is inactive. Start appears in the later execution phase. |
+| Saved, no edits | Show the confirmed revision. Start is available when the matching aircraft and runtime are ready. |
 | Local edits | Show **Unsaved changes**; save needs a valid draft and fresh compatible service. |
 | Stale/disconnected source | Show last-known library/revision; retain edits; disable remote save/start with a reason. |
 | Leaving a dirty draft | Offer **Keep draft**, **Discard** or **Cancel** before switching context. |
@@ -264,7 +284,7 @@ command is silently replaced by a convenient value.
 | Save reply lost | Show outcome unknown; retain draft and request identity while reconciling. |
 | Unsupported import | List rejected items/frames; preserve the existing draft and saved mission. |
 | Editing while running | Show saved/draft and running revisions separately; save never changes the run. |
-| Start unavailable | Keep authoring available; show the missing prerequisite in the later execution UI. |
+| Start unavailable | Keep authoring available and show the missing prerequisite in the mission panel. |
 
 Local drafts must survive application restart and remain distinct from confirmed
 DCLink revisions. Reopening a draft requires a fresh comparison with its service
@@ -281,7 +301,7 @@ An uncertain save uses the shared contract's reconciliation and retry rules.
 Do not allocate another copy or start a mission to resolve uncertainty. A service
 restart requires fresh reads and an operator decision before a new mutation.
 
-## Later rules, areas and execution
+## Later rules and areas
 
 Rules will use a small guided card: **Where**, **When**, **Do**, and **After** for
 the supported completion/resume behavior. Scope choices can reference a waypoint area, route
@@ -294,18 +314,6 @@ Areas will reuse geographic drawing controls with a name and supported behavior
 preset. A behavior area is distinct from an aircraft geofence. Drawing an area
 does not implement obstacle sensing or avoidance; the service must advertise and
 validate that behavior before the editor offers it.
-
-The later execution phase will start an explicit saved mission ID and revision,
-then display the service-confirmed run identity and state. An immutable running
-revision separates execution from QGC or Maintenance edits. Start requires a
-saved, current revision and the service's readiness checks; unsaved edits must
-be saved or discarded first. Acceptance of a request is not completion of a
-mission.
-
-Compact Fly View progress belongs to that later execution phase. It should show
-the running mission/revision, route progress and a concise interruption reason
-without replacing the map or existing aircraft controls. Phase 1 leaves the
-current Fly View controls and overlay unchanged.
 
 ## Review checklist for future implementation
 
