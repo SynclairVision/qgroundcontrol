@@ -8,6 +8,7 @@
 #include <QtCore/QUuid>
 
 #include "DCLinkMissionClient.h"
+#include "DCLinkMissionJson.h"
 
 namespace {
 constexpr int RUN_STATUS_MAX_AGE_MS = 3500;
@@ -101,7 +102,7 @@ bool integral(const QJsonValue& field, double minimum, double maximum)
 bool launchable(const QVariantMap& record)
 {
     const QJsonObject json = QJsonObject::fromVariantMap(record);
-    return json.value(QStringLiteral("schema_version")) == QJsonValue(1) &&
+    return json.value(QStringLiteral("schema_version")) == QJsonValue(DCLinkMissionJson::SCHEMA_VERSION) &&
            integral(json.value(QStringLiteral("waypoint_count")), 1, 1000);
 }
 
@@ -241,6 +242,14 @@ QString DCLinkMissionEditor::runText() const
         details = tr("Starting");
     } else if (state == QStringLiteral("running")) {
         details = tr("Waypoint %1/%2").arg(reached + 1).arg(count);
+        const QJsonObject event = QJsonObject::fromVariantMap(_run.value(QStringLiteral("rule_event")).toMap());
+        const QJsonValue remaining = event.value(QStringLiteral("remaining_s"));
+        if (event.value(QStringLiteral("type")) == QStringLiteral("wait") &&
+            validUuid(event.value(QStringLiteral("rule_id")).toVariant()) &&
+            integral(event.value(QStringLiteral("action_index")), 1, DCLinkMissionJson::MAX_RULE_ACTIONS) &&
+            integral(remaining, 0, 60)) {
+            details = tr("Waiting · %1 s · %2").arg(remaining.toInt()).arg(details);
+        }
     } else if (state == QStringLiteral("completed")) {
         details = tr("Completed · Hold");
     } else if (state == QStringLiteral("canceled")) {
@@ -253,6 +262,23 @@ QString DCLinkMissionEditor::runText() const
     }
     return tr("%1 · %2 · r%3").arg(details, _run.value(QStringLiteral("name")).toString(),
                                    _run.value(QStringLiteral("revision")).toString());
+}
+
+QString DCLinkMissionEditor::ruleNotification() const
+{
+    if (!_runFresh()) {
+        return {};
+    }
+    const QJsonValue event = QJsonValue::fromVariant(_run.value(QStringLiteral("last_notification")));
+    if (!DCLinkMissionJson::validRuleNotification(event)) {
+        return {};
+    }
+    return tr("Mission message · %1").arg(event.toObject().value(QStringLiteral("text")).toString());
+}
+
+QString DCLinkMissionEditor::recentRuleNotification() const
+{
+    return _ruleNotificationAge.isValid() && _ruleNotificationAge.elapsed() < 8000 ? ruleNotification() : QString();
 }
 
 QString DCLinkMissionEditor::flightRunText() const
@@ -329,9 +355,7 @@ void DCLinkMissionEditor::_receiveRunStatus(const QVariantMap& data)
     _runReportAge.restart();
     if (!run.isEmpty() || _runEndpoint != _executionEndpoint || _runServiceSession == _executionServiceSession ||
         !ACTIVE_STATES.contains(_run.value(QStringLiteral("state")).toString())) {
-        _run = run;
-        _runEndpoint = _executionEndpoint;
-        _runServiceSession = _executionServiceSession;
+        _setRun(run);
     }
 
     const QVariantMap payload = _pendingMutation.value(QStringLiteral("payload")).toMap();
@@ -359,9 +383,7 @@ void DCLinkMissionEditor::_executionFinished(const QString& action, const QStrin
         ? matchesStart(run, _pendingMutation)
         : run.value(QStringLiteral("run_id")) == payload.value(QStringLiteral("run_id"));
     if (code == QStringLiteral("ok") && matches && validRun(run)) {
-        _run = run;
-        _runEndpoint = _endpoint();
-        _runServiceSession = _client->serviceSession();
+        _setRun(run);
         _error.clear();
     } else if (_client->outcomeUnknown() || code == QStringLiteral("ok")) {
         _error = tr("Mission command outcome unknown. Check the aircraft and current run.");
@@ -377,4 +399,18 @@ void DCLinkMissionEditor::_executionFinished(const QString& action, const QStrin
     _persist();
     _pollRunStatus();
     emit changed();
+}
+
+void DCLinkMissionEditor::_setRun(const QVariantMap& run)
+{
+    const auto notification = run.value(QStringLiteral("last_notification"));
+    if (notification.isNull()) {
+        _ruleNotificationAge.invalidate();
+    } else if (notification != _run.value(QStringLiteral("last_notification")) ||
+               run.value(QStringLiteral("run_id")) != _run.value(QStringLiteral("run_id"))) {
+        _ruleNotificationAge.start();
+    }
+    _run = run;
+    _runEndpoint = _endpoint();
+    _runServiceSession = _client->serviceSession();
 }

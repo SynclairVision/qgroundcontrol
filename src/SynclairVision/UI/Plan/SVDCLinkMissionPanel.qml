@@ -344,6 +344,12 @@ Rectangle {
                 wrapMode: Text.WordWrap
             }
 
+            SVDCLinkMissionRules {
+                Layout.fillWidth: true
+                visible: root.editor.hasDraft && !root.editor.readOnly
+                editor: root.editor
+            }
+
             RowLayout {
                 Layout.fillWidth: true
 

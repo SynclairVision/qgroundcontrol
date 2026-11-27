@@ -168,6 +168,13 @@ requires a new operator confirmation.
    absolute altitude, nonempty fence/rally content and duplicate JSON keys.
 8. Disconnect or change the DigiView destination. Local edits must remain;
    remote actions must require discovery and a matching draft destination.
+9. Add a waypoint rule with message, wait, and message steps and a leg rule with
+   one message. Save in QGC, open the same revision in Maintenance, and verify
+   the steps and trigger references. In PX4 SITL, start the saved route in Fly
+   View and verify the countdown, message order and continuation. Cancel
+   during a wait and verify that the route does not advance.
+10. Reorder or remove a waypoint used by the leg. Confirm QGC flags the
+    rule and blocks Save until the reference is fixed.
 
 ## Planning destination and ownership
 
@@ -303,14 +310,30 @@ An uncertain save uses the shared contract's reconciliation and retry rules.
 Do not allocate another copy or start a mission to resolve uncertainty. A service
 restart requires fresh reads and an operator decision before a new mutation.
 
-## Later rules and areas
+## Waypoint and leg rules
 
-Rules will use a small guided card: **Where**, **When**, **Do**, and **After** for
-the supported completion/resume behavior. Scope choices can reference a waypoint area, route
-leg or named area using stable IDs. Available classes and actions must come from
-the shared capabilities, not an unrestricted expression editor or free-text
-command payload. A class-triggered action and its return to the route are runtime
-features, not a map-editor simulation.
+In the DCLink Plan panel, expand **Rules** and choose **Add rule**. Select
+**Reach waypoint** to run steps when the mission reaches a point, or **Start
+leg** to run steps when it transitions between two consecutive waypoints.
+The editor displays waypoint numbers and saves stable waypoint IDs. Removing
+a referenced point or changing a leg's order requires fixing the affected
+rule before saving.
+
+Add **Show message** or **Wait at waypoint** steps. The steps run in the
+displayed order, then the route continues. For example, at waypoint 2, show
+“Starting observation”, wait 10 seconds, then show “Observation complete”.
+Wait steps are available at waypoint arrivals. Leg rules can show messages
+as the route advances. Use the arrow buttons to reorder steps or to choose
+the order of rules that share a trigger.
+
+**Apply** updates the draft. **Save to DCLink** commits the mission and its rules
+together. Every run uses its selected saved revision. The Fly View status strip
+shows the wait countdown and new messages. Open **DCLink Mission** to see the
+latest message for that run or use the existing Cancel controls. New drafts
+and imported routes use mission format 2. Mission format 1 can be opened read
+only and is unavailable for Start.
+
+## Later areas and detection conditions
 
 Areas will reuse geographic drawing controls with a name and supported behavior
 preset. A behavior area is distinct from an aircraft geofence. Drawing an area

@@ -10,6 +10,7 @@ Item {
     required property var client
     property string layoutWarning: ""
     property string missionProgress: ""
+    property string missionNotification: ""
     readonly property real margin: ScreenTools.defaultFontPixelHeight * 0.25
     readonly property real minimumWidth: ScreenTools.defaultFontPixelWidth * 28 + _rowHeight + margin * 2
     readonly property real _rowHeight: ScreenTools.defaultFontPixelHeight * 1.5
@@ -175,6 +176,14 @@ Item {
             visible: text.length > 0
             width: parent.width
             wrapMode: Text.Wrap
+        }
+
+        QGCLabel {
+            elide: Text.ElideRight
+            text: root.missionNotification
+            textFormat: Text.PlainText
+            visible: text.length > 0
+            width: parent.width
         }
     }
 

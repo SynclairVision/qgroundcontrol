@@ -51,6 +51,8 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QString runId READ runId NOTIFY changed)
     Q_PROPERTY(QString runText READ runText NOTIFY changed)
     Q_PROPERTY(QString flightRunText READ flightRunText NOTIFY changed)
+    Q_PROPERTY(QString ruleNotification READ ruleNotification NOTIFY changed)
+    Q_PROPERTY(QString recentRuleNotification READ recentRuleNotification NOTIFY changed)
     Q_PROPERTY(bool canCancelRun READ canCancelRun NOTIFY changed)
     Q_PROPERTY(int selectedWaypoint READ selectedWaypoint WRITE setSelectedWaypoint NOTIFY changed)
 
@@ -97,6 +99,8 @@ public:
     QString runId() const;
     QString runText() const;
     QString flightRunText() const;
+    QString ruleNotification() const;
+    QString recentRuleNotification() const;
     bool canCancelRun() const;
 
     int selectedWaypoint() const { return _selectedWaypoint; }
@@ -114,6 +118,9 @@ public:
     Q_INVOKABLE void setWaypointCoordinate(int index, double latitude, double longitude);
     Q_INVOKABLE void moveWaypoint(int from, int to);
     Q_INVOKABLE void removeWaypoint(int index);
+    Q_INVOKABLE QString applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions);
+    Q_INVOKABLE void removeRule(int index);
+    Q_INVOKABLE void moveRule(int from, int to);
     Q_INVOKABLE void save();
     Q_INVOKABLE void reload();
     Q_INVOKABLE void deleteMission();
@@ -151,6 +158,7 @@ private:
     void _pollRunStatus();
     void _receiveRunStatus(const QVariantMap& data);
     void _executionFinished(const QString& action, const QString& code, const QVariantMap& data);
+    void _setRun(const QVariantMap& run);
 
     DCLinkMissionClient* const _client;
     DigiviewManager* const _digiview;
@@ -177,6 +185,7 @@ private:
     QTimer _runPoll;
     QElapsedTimer _runReportAge;
     QElapsedTimer _runRequestAge;
+    QElapsedTimer _ruleNotificationAge;
     QString _runStatusRequest;
     QVariantMap _executionStatus;
     QVariantMap _runEndpoint;

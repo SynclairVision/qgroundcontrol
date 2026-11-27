@@ -182,6 +182,7 @@ Item {
         width: Math.min(availableWidth, Math.max(availableWidth / 2, implicitWidth))
         client: SVBackend.dclink
         missionProgress: SVBackend.missionEditor.flightRunText
+        missionNotification: SVBackend.missionEditor.recentRuleNotification
         layoutWarning: !root._mainMap && SVSettings.dclinkVideoCommandsVisible
             && dclinkPanel.visibleFavoriteCount > 0 && !synclairFlyView.commandPlacementBlocked
             && !root._videoCommandPlacement.available ? qsTr("Favorites need more space") : ""

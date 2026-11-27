@@ -145,7 +145,7 @@ QVariantMap DCLinkMissionEditor::previewPlan(const QString& path, double default
                                      {QStringLiteral("altitude_m"), loaded.param7()},
                                      {QStringLiteral("acceptance_radius_m"), radius}});
     }
-    QJsonObject mission{{QStringLiteral("schema_version"), 1},
+    QJsonObject mission{{QStringLiteral("schema_version"), DCLinkMissionJson::SCHEMA_VERSION},
                         {QStringLiteral("name"), QFileInfo(path).completeBaseName()},
                         {QStringLiteral("altitude_reference"), QStringLiteral("relative_home")},
                         {QStringLiteral("waypoints"), waypoints},

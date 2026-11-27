@@ -483,7 +483,8 @@ void DCLinkMissionClient::_receiveMessage(const mavlink_message_t& message)
         const QJsonObject data = document.object().value(QStringLiteral("data")).toObject();
         const QJsonObject limits = data.value(QStringLiteral("limits")).toObject();
         if (code != QStringLiteral("ok") || capabilities.value(QStringLiteral("protocol_version")).toInt() != 1 ||
-            !data.value(QStringLiteral("schema_versions")).toArray().contains(QJsonValue(1)) ||
+            !data.value(QStringLiteral("schema_versions")).toArray().contains(
+                QJsonValue(DCLinkMissionJson::SCHEMA_VERSION)) ||
             limits.value(QStringLiteral("max_chunk_bytes")).toInt() != CHUNK_BYTES ||
             limits.value(QStringLiteral("max_transfer_bytes")).toInt() != MAX_TRANSFER_BYTES ||
             !data.value(QStringLiteral("transports")).toArray().contains(QJsonValue(QStringLiteral("mavlink"))) ||

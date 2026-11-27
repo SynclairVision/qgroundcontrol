@@ -57,7 +57,7 @@ QString endpointText(const QVariantMap& endpoint)
 
 QVariantMap emptyMission(const QString& name)
 {
-    return {{QStringLiteral("schema_version"), 1},
+    return {{QStringLiteral("schema_version"), DCLinkMissionJson::SCHEMA_VERSION},
             {QStringLiteral("name"), name},
             {QStringLiteral("altitude_reference"), QStringLiteral("relative_home")},
             {QStringLiteral("waypoints"), QVariantList{}},
@@ -209,12 +209,18 @@ QString DCLinkMissionEditor::saveReason() const
     if (!dirty()) {
         return tr("No unsaved changes.");
     }
-    const QString validation = DCLinkMissionJson::validateMission(QJsonObject::fromVariantMap(mission()));
+    const QJsonObject content = QJsonObject::fromVariantMap(mission());
+    const QString validation = DCLinkMissionJson::validateMission(content);
     if (!validation.isEmpty()) {
         return validation;
     }
     if (!fresh()) {
         return tr("Connect DigiView, then refresh the mission library.");
+    }
+    if (!content.value(QStringLiteral("rules")).toArray().isEmpty() &&
+        !_client->capabilities().value(QStringLiteral("features")).toStringList().contains(
+            QStringLiteral("waypoint_rules"))) {
+        return tr("This DCLink does not support waypoint rules.");
     }
     if (!destinationMatches()) {
         return tr("This draft belongs to another DCLink. Return to it, or make a copy for this destination.");
@@ -558,6 +564,71 @@ void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payl
         _pendingMutation.clear();
         _persist();
     }
+}
+
+QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions)
+{
+    if (!canEdit()) {
+        return tr("This mission cannot be edited right now.");
+    }
+    QVariantMap content = mission();
+    QVariantList rules = content.value(QStringLiteral("rules")).toList();
+    qsizetype index = rules.size();
+    if (id.isEmpty()) {
+        if (rules.size() >= DCLinkMissionJson::MAX_RULES) {
+            return tr("A mission can contain at most %1 rules.").arg(DCLinkMissionJson::MAX_RULES);
+        }
+    } else {
+        for (qsizetype i = 0; i < rules.size(); ++i) {
+            if (rules.at(i).toMap().value(QStringLiteral("id")).toString() == id) {
+                index = i;
+                break;
+            }
+        }
+        if (index == rules.size()) {
+            return tr("This rule has changed. Open it again to edit.");
+        }
+    }
+    const QVariantMap rule{{QStringLiteral("id"), id.isEmpty() ? newId() : id},
+                           {QStringLiteral("trigger"), trigger},
+                           {QStringLiteral("actions"), actions}};
+    const QString error = DCLinkMissionJson::validateRule(
+        QJsonObject::fromVariantMap(rule), QJsonArray::fromVariantList(waypoints()));
+    if (!error.isEmpty()) {
+        return error;
+    }
+    if (id.isEmpty()) {
+        rules.append(rule);
+    } else {
+        rules[index] = rule;
+    }
+    content.insert(QStringLiteral("rules"), rules);
+    _editMission(content);
+    return {};
+}
+
+void DCLinkMissionEditor::removeRule(int index)
+{
+    QVariantMap content = mission();
+    QVariantList rules = content.value(QStringLiteral("rules")).toList();
+    if (!canEdit() || index < 0 || index >= rules.size()) {
+        return;
+    }
+    rules.removeAt(index);
+    content.insert(QStringLiteral("rules"), rules);
+    _editMission(content);
+}
+
+void DCLinkMissionEditor::moveRule(int from, int to)
+{
+    QVariantMap content = mission();
+    QVariantList rules = content.value(QStringLiteral("rules")).toList();
+    if (!canEdit() || from < 0 || to < 0 || from >= rules.size() || to >= rules.size() || from == to) {
+        return;
+    }
+    rules.move(from, to);
+    content.insert(QStringLiteral("rules"), rules);
+    _editMission(content);
 }
 
 void DCLinkMissionEditor::save()

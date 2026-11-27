@@ -7,8 +7,89 @@
 #include <QtCore/QUuid>
 
 #include <cmath>
+#include <initializer_list>
 
 namespace DCLinkMissionJson {
+namespace {
+bool hasKeys(const QJsonObject& object, std::initializer_list<QString> keys)
+{
+    if (object.size() != static_cast<qsizetype>(keys.size())) {
+        return false;
+    }
+    for (const auto& key : keys) {
+        if (!object.contains(key)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool validId(const QString& id)
+{
+    const QUuid uuid(id);
+    return uuid.version() == QUuid::Random && uuid.variant() == QUuid::DCE &&
+           uuid.toString(QUuid::WithoutBraces) == id;
+}
+
+bool validInteger(const QJsonValue& field, int minimum, int maximum)
+{
+    const double value = field.toDouble();
+    return field.isDouble() && value >= minimum && value <= maximum && std::floor(value) == value;
+}
+
+bool validNoticeText(const QString& message)
+{
+    if (message.isEmpty() || !message.isValidUtf16() || message.toUcs4().size() > 100 ||
+        message != message.trimmed() || message.front() == QChar(0xfeff) || message.back() == QChar(0xfeff)) {
+        return false;
+    }
+    for (const QChar character : message) {
+        if (character.category() == QChar::Other_Control) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool supportsRule(const QJsonObject& rule)
+{
+    if (!hasKeys(rule, {QStringLiteral("id"), QStringLiteral("trigger"), QStringLiteral("actions")}) ||
+        !rule.value(QStringLiteral("actions")).isArray()) {
+        return false;
+    }
+    const QJsonObject trigger = rule.value(QStringLiteral("trigger")).toObject();
+    const QString event = trigger.value(QStringLiteral("type")).toString();
+    if (event == QStringLiteral("waypoint_reached")) {
+        if (!hasKeys(trigger, {QStringLiteral("type"), QStringLiteral("waypoint_id")})) {
+            return false;
+        }
+    } else if (event == QStringLiteral("leg_started")) {
+        if (!hasKeys(trigger, {QStringLiteral("type"), QStringLiteral("from_waypoint_id"),
+                               QStringLiteral("to_waypoint_id")})) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    for (const auto& value : rule.value(QStringLiteral("actions")).toArray()) {
+        const QJsonObject action = value.toObject();
+        const QString type = action.value(QStringLiteral("type")).toString();
+        if (type == QStringLiteral("notify")) {
+            if (!hasKeys(action, {QStringLiteral("type"), QStringLiteral("text")})) {
+                return false;
+            }
+        } else if (type == QStringLiteral("wait")) {
+            if (!hasKeys(action, {QStringLiteral("type"), QStringLiteral("duration_s")})) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+}  // namespace
+
 bool uniqueObjectKeys(const QByteArray& json)
 {
     // QJsonDocument validates grammar but retains only the last duplicate key.
@@ -81,14 +162,68 @@ QString unsupportedMission(const QJsonObject& mission)
     const QStringList keys = mission.keys();
     if (QSet<QString>(keys.begin(), keys.end()) != required ||
         !mission.value(QStringLiteral("schema_version")).isDouble() ||
-        mission.value(QStringLiteral("schema_version")).toDouble() != 1 ||
+        mission.value(QStringLiteral("schema_version")).toDouble() != SCHEMA_VERSION ||
         mission.value(QStringLiteral("altitude_reference")).toString() != QStringLiteral("relative_home") ||
         !mission.value(QStringLiteral("rules")).isArray() || !mission.value(QStringLiteral("areas")).isArray() ||
-        !mission.value(QStringLiteral("rules")).toArray().isEmpty() ||
         !mission.value(QStringLiteral("areas")).toArray().isEmpty()) {
         return QObject::tr("This mission contains an unsupported version, altitude reference, or feature. Read only.");
     }
+    for (const auto& rule : mission.value(QStringLiteral("rules")).toArray()) {
+        if (!supportsRule(rule.toObject())) {
+            return QObject::tr("This mission contains an unsupported rule. Read only.");
+        }
+    }
     return {};
+}
+
+QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
+{
+    if (!supportsRule(rule) || !validId(rule.value(QStringLiteral("id")).toString())) {
+        return QObject::tr("Choose a supported trigger and steps for this rule.");
+    }
+    const QJsonObject trigger = rule.value(QStringLiteral("trigger")).toObject();
+    const bool arrival = trigger.value(QStringLiteral("type")) == QStringLiteral("waypoint_reached");
+    const QString first = trigger.value(arrival ? QStringLiteral("waypoint_id")
+                                                : QStringLiteral("from_waypoint_id")).toString();
+    const QString last = trigger.value(QStringLiteral("to_waypoint_id")).toString();
+    bool found = false;
+    const bool validReference = validId(first) && (arrival || validId(last));
+    for (qsizetype i = 0; validReference && i < waypoints.size(); ++i) {
+        if (waypoints.at(i).toObject().value(QStringLiteral("id")).toString() == first) {
+            found = arrival || (i + 1 < waypoints.size() &&
+                                waypoints.at(i + 1).toObject().value(QStringLiteral("id")).toString() == last);
+            break;
+        }
+    }
+    if (!found) {
+        return arrival ? QObject::tr("Choose a waypoint on this route.")
+                       : QObject::tr("Choose two consecutive waypoints in route order.");
+    }
+    const QJsonArray actions = rule.value(QStringLiteral("actions")).toArray();
+    if (actions.isEmpty() || actions.size() > MAX_RULE_ACTIONS) {
+        return QObject::tr("Add 1–%1 steps to this rule.").arg(MAX_RULE_ACTIONS);
+    }
+    for (const auto& value : actions) {
+        const QJsonObject action = value.toObject();
+        if (action.value(QStringLiteral("type")) == QStringLiteral("notify")) {
+            if (!validNoticeText(action.value(QStringLiteral("text")).toString())) {
+                return QObject::tr(
+                    "Use 1–100 characters in each message, without surrounding spaces or line breaks.");
+            }
+        } else if (!arrival || !validInteger(action.value(QStringLiteral("duration_s")), 1, 60)) {
+            return QObject::tr("Wait steps need 1–60 whole seconds and can only be used at waypoint arrivals.");
+        }
+    }
+    return {};
+}
+
+bool validRuleNotification(const QJsonValue& value)
+{
+    const QJsonObject event = value.toObject();
+    return event.value(QStringLiteral("type")) == QStringLiteral("notify") &&
+           validId(event.value(QStringLiteral("rule_id")).toString()) &&
+           validInteger(event.value(QStringLiteral("action_index")), 1, MAX_RULE_ACTIONS) &&
+           validNoticeText(event.value(QStringLiteral("text")).toString());
 }
 
 QString validateMission(const QJsonObject& mission)
@@ -143,6 +278,30 @@ QString validateMission(const QJsonObject& mission)
             waypoint.value(QStringLiteral("acceptance_radius_m")).toDouble() <= 0) {
             return QObject::tr("Waypoint %1 requires valid coordinates and a positive acceptance radius.").arg(index);
         }
+    }
+    const QJsonArray rules = mission.value(QStringLiteral("rules")).toArray();
+    if (rules.size() > MAX_RULES) {
+        return QObject::tr("A mission can contain at most %1 rules.").arg(MAX_RULES);
+    }
+    QSet<QString> ruleIds;
+    int totalWait = 0;
+    for (qsizetype i = 0; i < rules.size(); ++i) {
+        const QJsonObject rule = rules.at(i).toObject();
+        const QString ruleError = validateRule(rule, route.toArray());
+        if (!ruleError.isEmpty()) {
+            return QObject::tr("Rule %1. %2").arg(i + 1).arg(ruleError);
+        }
+        const QString id = rule.value(QStringLiteral("id")).toString();
+        if (ruleIds.contains(id)) {
+            return QObject::tr("Rule %1 has a repeated identity.").arg(i + 1);
+        }
+        ruleIds.insert(id);
+        for (const auto& action : rule.value(QStringLiteral("actions")).toArray()) {
+            totalWait += action.toObject().value(QStringLiteral("duration_s")).toInt();
+        }
+    }
+    if (totalWait > 300) {
+        return QObject::tr("All Wait steps together may total at most 300 seconds.");
     }
     if (QJsonDocument(mission).toJson(QJsonDocument::Compact).size() > 262144) {
         return QObject::tr("The mission exceeds the DCLink document size limit.");

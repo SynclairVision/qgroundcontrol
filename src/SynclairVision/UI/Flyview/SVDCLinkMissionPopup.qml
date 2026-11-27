@@ -135,6 +135,14 @@ Popup {
                 visible: text.length > 0
             }
 
+            QGCLabel {
+                Layout.fillWidth: true
+                text: root._editor.ruleNotification
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                visible: text.length > 0
+            }
+
             SVDCLinkButton {
                 Layout.fillWidth: true
                 text: qsTr("Cancel run")
