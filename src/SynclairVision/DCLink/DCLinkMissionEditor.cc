@@ -217,10 +217,20 @@ QString DCLinkMissionEditor::saveReason() const
     if (!fresh()) {
         return tr("Connect DigiView, then refresh the mission library.");
     }
-    if (!content.value(QStringLiteral("rules")).toArray().isEmpty() &&
-        !_client->capabilities().value(QStringLiteral("features")).toStringList().contains(
-            QStringLiteral("waypoint_rules"))) {
+    const auto rules = content.value(QStringLiteral("rules")).toArray();
+    const auto features = _client->capabilities().value(QStringLiteral("features")).toStringList();
+    if (!rules.isEmpty() && !features.contains(QStringLiteral("waypoint_rules"))) {
         return tr("This DCLink does not support waypoint rules.");
+    }
+    if (!features.contains(QStringLiteral("mission_detection_rules"))) {
+        for (const QJsonValue& value : rules) {
+            const QJsonObject rule = value.toObject();
+            if (rule.contains(QStringLiteral("condition")) ||
+                rule.value(QStringLiteral("trigger")).toObject().value(QStringLiteral("type")) ==
+                    QStringLiteral("leg_progress")) {
+                return tr("Update DCLink to save detection conditions or rules that run along a leg.");
+            }
+        }
     }
     if (!destinationMatches()) {
         return tr("This draft belongs to another DCLink. Return to it, or make a copy for this destination.");
@@ -566,7 +576,8 @@ void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payl
     }
 }
 
-QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions)
+QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions,
+                                      const QVariantMap& condition)
 {
     if (!canEdit()) {
         return tr("This mission cannot be edited right now.");
@@ -589,9 +600,12 @@ QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& tri
             return tr("This rule has changed. Open it again to edit.");
         }
     }
-    const QVariantMap rule{{QStringLiteral("id"), id.isEmpty() ? newId() : id},
-                           {QStringLiteral("trigger"), trigger},
-                           {QStringLiteral("actions"), actions}};
+    QVariantMap rule{{QStringLiteral("id"), id.isEmpty() ? newId() : id},
+                     {QStringLiteral("trigger"), trigger},
+                     {QStringLiteral("actions"), actions}};
+    if (!condition.isEmpty()) {
+        rule.insert(QStringLiteral("condition"), condition);
+    }
     const QString error = DCLinkMissionJson::validateRule(
         QJsonObject::fromVariantMap(rule), QJsonArray::fromVariantList(waypoints()));
     if (!error.isEmpty()) {

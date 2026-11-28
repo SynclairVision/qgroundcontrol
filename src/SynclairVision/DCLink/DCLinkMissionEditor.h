@@ -118,7 +118,8 @@ public:
     Q_INVOKABLE void setWaypointCoordinate(int index, double latitude, double longitude);
     Q_INVOKABLE void moveWaypoint(int from, int to);
     Q_INVOKABLE void removeWaypoint(int index);
-    Q_INVOKABLE QString applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions);
+    Q_INVOKABLE QString applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions,
+                                  const QVariantMap& condition);
     Q_INVOKABLE void removeRule(int index);
     Q_INVOKABLE void moveRule(int from, int to);
     Q_INVOKABLE void save();

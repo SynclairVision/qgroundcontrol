@@ -173,7 +173,13 @@ requires a new operator confirmation.
    the steps and trigger references. In PX4 SITL, start the saved route in Fly
    View and verify the countdown, message order and continuation. Cancel
    during a wait and verify that the route does not advance.
-10. Reorder or remove a waypoint used by the leg. Confirm QGC flags the
+10. Add an **Anywhere on the leg** rule with a camera condition and an
+    **At a percentage** rule at 50%. Save, then reopen both rules and verify
+    their timing and class settings. In SITL, the Anywhere rule runs once when
+    the camera reports a match on that leg. For a conditioned 50% rule, check
+    that a match at the crossing runs the steps and a later match leaves
+    them skipped.
+11. Reorder or remove a waypoint used by the leg. Confirm QGC flags the
     rule and blocks Save until the reference is fixed.
 
 ## Planning destination and ownership
@@ -313,11 +319,22 @@ restart requires fresh reads and an operator decision before a new mutation.
 ## Waypoint and leg rules
 
 In the DCLink Plan panel, expand **Rules** and choose **Add rule**. Select
-**Reach waypoint** to run steps when the mission reaches a point, or **Start
-leg** to run steps when it transitions between two consecutive waypoints.
+**Reach waypoint** or choose **On a leg** and select two consecutive waypoints.
+On a leg, choose **Start of leg**, **Anywhere on the leg**, or **At a percentage**.
+A whole percentage marks progress along the route from the first waypoint to
+the second. For example, 50% is halfway, 0% is the start of the leg, and 100%
+is when DCLink accepts arrival at the second waypoint.
 The editor displays waypoint numbers and saves stable waypoint IDs. Removing
 a referenced point or changing a leg's order requires fixing the affected
 rule before saving.
+
+Set **Condition** to **Camera sees an object** to require a fresh active
+classified detection. Leave **Camera class ID (optional)** blank for any class
+or enter the numeric ID from your camera model. Waypoint, leg-start, and
+percentage rules check the condition once at the selected event. **Anywhere
+on the leg** runs once on the first match while that leg is active. With
+**Always** selected, it runs at the beginning of the leg. A missing, stale, or
+nonmatching detection leaves the mission on its planned route.
 
 Add **Show message** or **Wait at waypoint** steps. The steps run in the
 displayed order, then the route continues. For example, at waypoint 2, show
@@ -333,7 +350,11 @@ latest message for that run or use the existing Cancel controls. New drafts
 and imported routes use mission format 2. Mission format 1 can be opened read
 only and is unavailable for Start.
 
-## Later areas and detection conditions
+Rules with a camera condition or along-leg timing require a DCLink build
+that supports those features. Existing waypoint and leg-start rules continue
+to work on mission-format 2 builds.
+
+## Later areas
 
 Areas will reuse geographic drawing controls with a name and supported behavior
 preset. A behavior area is distinct from an aircraft geofence. Drawing an area

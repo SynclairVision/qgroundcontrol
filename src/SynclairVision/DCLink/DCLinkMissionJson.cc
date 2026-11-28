@@ -53,9 +53,20 @@ bool validNoticeText(const QString& message)
 
 bool supportsRule(const QJsonObject& rule)
 {
-    if (!hasKeys(rule, {QStringLiteral("id"), QStringLiteral("trigger"), QStringLiteral("actions")}) ||
-        !rule.value(QStringLiteral("actions")).isArray()) {
+    const QString conditionKey = QStringLiteral("condition");
+    const auto required = {QStringLiteral("id"), QStringLiteral("trigger"), QStringLiteral("actions")};
+    QJsonObject base = rule;
+    const QJsonValue conditionValue = base.take(conditionKey);
+    if (!hasKeys(base, required) || !rule.value(QStringLiteral("actions")).isArray()) {
         return false;
+    }
+    if (!conditionValue.isUndefined()) {
+        const QJsonObject condition = conditionValue.toObject();
+        if (condition.value(QStringLiteral("type")) != QStringLiteral("detection_present") ||
+            (!hasKeys(condition, {QStringLiteral("type")}) &&
+             !hasKeys(condition, {QStringLiteral("type"), QStringLiteral("class_id")}))) {
+            return false;
+        }
     }
     const QJsonObject trigger = rule.value(QStringLiteral("trigger")).toObject();
     const QString event = trigger.value(QStringLiteral("type")).toString();
@@ -66,6 +77,21 @@ bool supportsRule(const QJsonObject& rule)
     } else if (event == QStringLiteral("leg_started")) {
         if (!hasKeys(trigger, {QStringLiteral("type"), QStringLiteral("from_waypoint_id"),
                                QStringLiteral("to_waypoint_id")})) {
+            return false;
+        }
+    } else if (event == QStringLiteral("leg_progress")) {
+        if (!hasKeys(trigger, {QStringLiteral("type"), QStringLiteral("from_waypoint_id"),
+                               QStringLiteral("to_waypoint_id"), QStringLiteral("position")})) {
+            return false;
+        }
+        const QJsonObject position = trigger.value(QStringLiteral("position")).toObject();
+        const QJsonValue type = position.value(QStringLiteral("type"));
+        if (type == QStringLiteral("anywhere")) {
+            if (!hasKeys(position, {QStringLiteral("type")})) {
+                return false;
+            }
+        } else if (type != QStringLiteral("percent") ||
+                   !hasKeys(position, {QStringLiteral("type"), QStringLiteral("percent")})) {
             return false;
         }
     } else {
@@ -198,6 +224,15 @@ QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
     if (!found) {
         return arrival ? QObject::tr("Choose a waypoint on this route.")
                        : QObject::tr("Choose two consecutive waypoints in route order.");
+    }
+    const QJsonObject position = trigger.value(QStringLiteral("position")).toObject();
+    if (position.value(QStringLiteral("type")) == QStringLiteral("percent") &&
+        !validInteger(position.value(QStringLiteral("percent")), 0, 100)) {
+        return QObject::tr("Enter a whole percentage from 0 to 100.");
+    }
+    const QJsonValue classId = rule.value(QStringLiteral("condition")).toObject().value(QStringLiteral("class_id"));
+    if (!classId.isUndefined() && !validInteger(classId, 0, 32767)) {
+        return QObject::tr("Enter a camera class ID from 0 to 32767 or leave it blank for any class.");
     }
     const QJsonArray actions = rule.value(QStringLiteral("actions")).toArray();
     if (actions.isEmpty() || actions.size() > MAX_RULE_ACTIONS) {
