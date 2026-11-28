@@ -8,6 +8,7 @@
 #include <QtCore/QVariantMap>
 #include <QtQmlIntegration/QtQmlIntegration>
 
+class QJsonObject;
 class DCLinkMissionClient;
 class DigiviewManager;
 
@@ -23,6 +24,7 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QVariantMap mission READ mission NOTIFY changed)
     Q_PROPERTY(QVariantList waypoints READ waypoints NOTIFY changed)
     Q_PROPERTY(QVariantList areas READ areas NOTIFY changed)
+    Q_PROPERTY(QVariantList missionCommands READ missionCommands NOTIFY changed)
     Q_PROPERTY(QString missionId READ missionId NOTIFY changed)
     Q_PROPERTY(quint32 revision READ revision NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY changed)
@@ -66,6 +68,7 @@ public:
     QVariantMap mission() const;
     QVariantList waypoints() const;
     QVariantList areas() const;
+    QVariantList missionCommands() const;
     QString missionId() const;
     quint32 revision() const;
     bool dirty() const;
@@ -148,6 +151,7 @@ signals:
 private:
     QVariantMap _endpoint() const;
     QVariantMap _draft() const;
+    QString _commandStepSaveReason(const QJsonObject& mission) const;
     void _setDraft(const QVariantMap& draft);
     void _editMission(const QVariantMap& mission);
     void _createDraft(const QVariantMap& mission);

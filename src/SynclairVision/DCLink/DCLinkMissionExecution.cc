@@ -81,6 +81,15 @@ QString explainReason(const QString& reason, const QVariantMap& data = {})
     if (reason == QStringLiteral("command_start_failed")) {
         return Editor::tr("DCLink could not start the mission command.");
     }
+    if (reason == QStringLiteral("mission_command_timeout")) {
+        return Editor::tr("The mission command timed out.");
+    }
+    if (reason == QStringLiteral("mission_command_heading_unavailable")) {
+        return Editor::tr("Aircraft heading is unavailable for the mission command.");
+    }
+    if (reason == QStringLiteral("mission_command_position_out_of_bounds")) {
+        return Editor::tr("Aircraft position is outside the limits for the mission command.");
+    }
     if (reason == QStringLiteral("command_ended")) {
         return Editor::tr("DCLink released the mission");
     }
@@ -244,12 +253,27 @@ QString DCLinkMissionEditor::runText() const
     } else if (state == QStringLiteral("running")) {
         details = tr("Waypoint %1/%2").arg(reached + 1).arg(count);
         const QJsonObject event = QJsonObject::fromVariantMap(_run.value(QStringLiteral("rule_event")).toMap());
+        const QJsonValue type = event.value(QStringLiteral("type"));
         const QJsonValue remaining = event.value(QStringLiteral("remaining_s"));
-        if (event.value(QStringLiteral("type")) == QStringLiteral("wait") &&
-            validUuid(event.value(QStringLiteral("rule_id")).toVariant()) &&
-            integral(event.value(QStringLiteral("action_index")), 1, DCLinkMissionJson::MAX_RULE_ACTIONS) &&
-            integral(remaining, 0, 60)) {
-            details = tr("Waiting · %1 s · %2").arg(remaining.toInt()).arg(details);
+        if (validUuid(event.value(QStringLiteral("rule_id")).toVariant()) &&
+            integral(event.value(QStringLiteral("action_index")), 1, DCLinkMissionJson::MAX_RULE_ACTIONS)) {
+            if (type == QStringLiteral("wait") && integral(remaining, 0, 60)) {
+                details = tr("Waiting · %1 s · %2").arg(remaining.toInt()).arg(details);
+            } else if (type == QStringLiteral("command") &&
+                       integral(remaining, 0, DCLinkMissionJson::MAX_COMMAND_STEP_SECONDS)) {
+                const QString id = event.value(QStringLiteral("command_id")).toString();
+                if (DCLinkMissionJson::validCommandId(id)) {
+                    QString label = tr("Mission command");
+                    for (const QVariant& value : missionCommands()) {
+                        const QVariantMap command = value.toMap();
+                        if (command.value(QStringLiteral("id")).toString() == id) {
+                            label = command.value(QStringLiteral("label")).toString();
+                            break;
+                        }
+                    }
+                    details = tr("%1 · %2 s · %3").arg(label).arg(remaining.toInt()).arg(details);
+                }
+            }
         }
     } else if (state == QStringLiteral("completed")) {
         details = tr("Completed · Hold");

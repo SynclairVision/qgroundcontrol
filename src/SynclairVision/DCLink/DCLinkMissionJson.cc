@@ -3,6 +3,7 @@
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QPointF>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QSet>
 #include <QtCore/QStringDecoder>
 #include <QtCore/QUuid>
@@ -109,6 +110,10 @@ bool supportsRule(const QJsonObject& rule)
             }
         } else if (type == QStringLiteral("wait")) {
             if (!hasKeys(action, {QStringLiteral("type"), QStringLiteral("duration_s")})) {
+                return false;
+            }
+        } else if (type == QStringLiteral("command")) {
+            if (!hasKeys(action, {QStringLiteral("type"), QStringLiteral("command_id")})) {
                 return false;
             }
         } else {
@@ -283,10 +288,15 @@ QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints, const
     }
     for (const auto& value : actions) {
         const QJsonObject action = value.toObject();
-        if (action.value(QStringLiteral("type")) == QStringLiteral("notify")) {
+        const QJsonValue type = action.value(QStringLiteral("type"));
+        if (type == QStringLiteral("notify")) {
             if (!validText(action.value(QStringLiteral("text")).toString(), 100)) {
                 return QObject::tr(
                     "Use 1–100 characters in each message, without surrounding spaces or line breaks.");
+            }
+        } else if (type == QStringLiteral("command")) {
+            if (!validCommandId(action.value(QStringLiteral("command_id")).toString())) {
+                return QObject::tr("Choose a valid mission command.");
             }
         } else if (!arrival || !validInteger(action.value(QStringLiteral("duration_s")), 1, 60)) {
             return QObject::tr("Wait steps need 1–60 whole seconds and can only be used at waypoint arrivals.");
@@ -364,6 +374,34 @@ QSet<QString> areaIds(const QJsonArray& areas)
         ids.insert(area.toObject().value(QStringLiteral("id")).toString());
     }
     return ids;
+}
+
+bool validCommandId(const QString& id)
+{
+    static const QRegularExpression pattern(QStringLiteral(R"(\A[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*\z)"));
+    return id.size() <= 64 && pattern.match(id).hasMatch();
+}
+
+QVariantList compatibleCommands(const QJsonObject& capabilities)
+{
+    const QJsonArray entries = capabilities.value(QStringLiteral("mission_commands")).toArray();
+    const QJsonArray features = capabilities.value(QStringLiteral("features")).toArray();
+    if (!features.contains(QJsonValue(QStringLiteral("mission_command_steps")))) {
+        return {};
+    }
+    QVariantList choices;
+    QSet<QString> ids;
+    for (const QJsonValue& entry : entries) {
+        const QJsonObject command = entry.toObject();
+        const QString id = command.value(QStringLiteral("id")).toString();
+        const QString label = command.value(QStringLiteral("label")).toString();
+        if (!validCommandId(id) || ids.contains(id) || !validText(label, 80)) {
+            return {};
+        }
+        ids.insert(id);
+        choices.append(QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("label"), label}});
+    }
+    return choices;
 }
 
 bool validRuleNotification(const QJsonValue& value)

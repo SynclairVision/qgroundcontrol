@@ -112,6 +112,12 @@ QVariantList DCLinkMissionEditor::areas() const
     return mission().value(QStringLiteral("areas")).toList();
 }
 
+QVariantList DCLinkMissionEditor::missionCommands() const
+{
+    return fresh() ? DCLinkMissionJson::compatibleCommands(QJsonObject::fromVariantMap(_client->capabilities()))
+                   : QVariantList{};
+}
+
 QString DCLinkMissionEditor::missionId() const
 {
     return _draft().value(QStringLiteral("mission_id")).toString();
@@ -173,6 +179,25 @@ QString DCLinkMissionEditor::draftSource() const
 bool DCLinkMissionEditor::canSave() const
 {
     return saveReason().isEmpty();
+}
+
+QString DCLinkMissionEditor::_commandStepSaveReason(const QJsonObject& content) const
+{
+    QSet<QString> compatibleIds;
+    for (const QVariant& command : missionCommands()) {
+        compatibleIds.insert(command.toMap().value(QStringLiteral("id")).toString());
+    }
+    for (const QJsonValue& rule : content.value(QStringLiteral("rules")).toArray()) {
+        for (const QJsonValue& action : rule.toObject().value(QStringLiteral("actions")).toArray()) {
+            const QJsonObject step = action.toObject();
+            if (step.value(QStringLiteral("type")) == QStringLiteral("command") &&
+                !compatibleIds.contains(step.value(QStringLiteral("command_id")).toString())) {
+                return tr("A rule command is unavailable on this DCLink. "
+                          "Edit the step or connect a compatible DCLink.");
+            }
+        }
+    }
+    return {};
 }
 
 bool DCLinkMissionEditor::conflict() const
@@ -243,6 +268,10 @@ QString DCLinkMissionEditor::saveReason() const
     }
     if (!destinationMatches()) {
         return tr("This draft belongs to another DCLink. Return to it, or make a copy for this destination.");
+    }
+    const QString commandReason = _commandStepSaveReason(content);
+    if (!commandReason.isEmpty()) {
+        return commandReason;
     }
     if (conflict()) {
         return tr("The saved mission changed. Reload it or make a copy to preserve your edits.");
@@ -562,6 +591,13 @@ void DCLinkMissionEditor::_listPage(const QString& cursor)
 
 void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payload)
 {
+    const QString commandReason =
+        _commandStepSaveReason(QJsonObject::fromVariantMap(payload.value(QStringLiteral("mission")).toMap()));
+    if (!commandReason.isEmpty()) {
+        _error = commandReason;
+        emit changed();
+        return;
+    }
     const QString id = newId();
     _pendingMutation = {
         {QStringLiteral("action"), action},        {QStringLiteral("payload"), payload},
@@ -750,10 +786,12 @@ void DCLinkMissionEditor::deleteMission()
 
 bool DCLinkMissionEditor::canRetry() const
 {
+    const auto content = _pendingMutation.value(QStringLiteral("payload")).toMap().value(QStringLiteral("mission"));
     return !busy() && fresh() && reviewRequired() && !executionReviewRequired() &&
            _pendingMutation.value(QStringLiteral("process")).toString() == _processId &&
            _pendingMutation.value(QStringLiteral("session")).toString() == _client->serviceSession() &&
-           _pendingMutation.value(QStringLiteral("endpoint")).toMap() == _endpoint();
+           _pendingMutation.value(QStringLiteral("endpoint")).toMap() == _endpoint() &&
+           _commandStepSaveReason(QJsonObject::fromVariantMap(content.toMap())).isEmpty();
 }
 
 void DCLinkMissionEditor::retryChange()

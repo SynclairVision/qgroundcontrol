@@ -9,6 +9,7 @@ import QGroundControl.Controls
 T.ComboBox {
     property bool sizeToContents: false
     property string alternateText: ""
+    property bool plainText: false
 
     id: control
     padding: ScreenTools.comboBoxPadding
@@ -80,6 +81,7 @@ T.ComboBox {
 
         contentItem: Text {
             text: _text
+            textFormat: control.plainText ? Text.PlainText : Text.AutoText
             font: control.font
             color: control.currentIndex === index ? qgcPal.buttonHighlightText : qgcPal.buttonText
             verticalAlignment: Text.AlignVCenter
@@ -106,6 +108,7 @@ T.ComboBox {
     contentItem: QGCLabel {
         id: text
         text: control.alternateText === "" ? control.currentText : control.alternateText
+        textFormat: control.plainText ? Text.PlainText : Text.AutoText
         font: control.font
         color: qgcPal.buttonText
         elide: Text.ElideRight

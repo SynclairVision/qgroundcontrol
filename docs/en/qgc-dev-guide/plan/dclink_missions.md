@@ -336,12 +336,21 @@ on the leg** runs once on the first match while that leg is active. With
 no camera or area condition, it runs at the beginning of the leg. A missing,
 stale, or nonmatching detection leaves the mission on its planned route.
 
-Add **Show message** or **Wait at waypoint** steps. The steps run in the
-displayed order, then the route continues. For example, at waypoint 2, show
-“Starting observation”, wait 10 seconds, then show “Observation complete”.
-Wait steps are available at waypoint arrivals. Leg rules can show messages
-as the route advances. Use the arrow buttons to reorder steps or to choose
-the order of rules that share a trigger.
+Add **Show message**, **Wait at waypoint**, or a compatible command. The
+steps run in the displayed order, then the route continues. For example, at
+waypoint 2, show “Starting observation”, wait 10 seconds, then show
+“Observation complete”.
+Wait steps are available at waypoint arrivals. Use the arrow buttons to
+reorder steps or to choose the order of rules that share a trigger.
+
+Refresh the DCLink mission library to load the compatible command choices.
+**Face north** is available at waypoint and leg triggers. DCLink pauses at
+the current position, turns to north, then continues the steps and the route.
+Fly View shows the command and its remaining time budget of up to 20 seconds.
+**Cancel run** ends the mission and requests Hold while a command is active.
+A command timeout or failure also requests Hold. If a saved step is unavailable
+on the connected DCLink, the editor keeps it visible for replacement and
+blocks uploading the draft until its command steps are compatible.
 
 **Apply** updates the draft. **Save to DCLink** commits the mission and its rules
 together. Every run uses its selected saved revision. The Fly View status strip
@@ -353,6 +362,12 @@ only and is unavailable for Start.
 Rules with a camera condition or along-leg timing require a DCLink build
 that supports those features. Existing waypoint and leg-start rules continue
 to work on mission-format 2 builds.
+
+In PX4 SITL, add **Face north** followed by **Show message** at a waypoint
+and at 50% of a leg. Start from Fly View with the aircraft facing away from
+north. Verify that the route pauses and the command countdown appears, then
+the next step and route resume after the turn. On a second run, cancel during
+the turn and verify that Hold is confirmed and the remaining steps are skipped.
 
 ## Behavior areas
 

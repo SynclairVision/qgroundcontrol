@@ -21,11 +21,22 @@ ColumnLayout {
     readonly property var _rules: editor.readOnly ? [] : (editor.mission.rules || [])
     readonly property var _waypoints: editor.waypoints
     readonly property var _areas: editor.areas
+    readonly property var _commands: editor.missionCommands
     readonly property bool _brokenReference: _rules.some(rule => triggerIndex(rule.trigger) < 0)
     readonly property bool _missingArea: _rules.some(rule => rule.area_id && !areaName(rule.area_id))
 
     function areaName(areaId) {
         return _areas.find(area => area.id === areaId)?.name || ""
+    }
+
+    function stepText(action) {
+        if (action.type === "wait")
+            return qsTr("Wait %1 s").arg(action.duration_s)
+        if (action.type === "command") {
+            const command = _commands.find(candidate => candidate.id === action.command_id)
+            return command?.label || qsTr("Unavailable command · %1").arg(action.command_id)
+        }
+        return qsTr("Show message")
     }
 
     function triggerIndex(trigger) {
@@ -128,9 +139,8 @@ ColumnLayout {
 
                 QGCLabel {
                     Layout.fillWidth: true
-                    text: (row.modelData.actions || []).map(action => action.type === "wait"
-                        ? qsTr("Wait %1 s").arg(action.duration_s)
-                        : qsTr("Show message")).join(qsTr(" → "))
+                    text: (row.modelData.actions || []).map(action => root.stepText(action)).join(qsTr(" → "))
+                    textFormat: Text.PlainText
                     font.pointSize: ScreenTools.smallFontPointSize
                     wrapMode: Text.Wrap
                 }
@@ -217,7 +227,16 @@ ColumnLayout {
                 && selection >= 0 && areaSelection >= 0 && steps.count > 0
 
             function appendStep() {
-                steps.append({ actionType: "notify", message: "", seconds: "5" })
+                steps.append({ actionType: "notify", message: "", seconds: "5", commandId: "" })
+            }
+
+            function actionChoices(allowWait) {
+                const options = [{ kind: "notify", label: qsTr("Show message"), commandId: "" }]
+                if (allowWait)
+                    options.push({ kind: "wait", label: qsTr("Wait at waypoint"), commandId: "" })
+                for (const command of root._commands)
+                    options.push({ kind: "command", label: command.label, commandId: command.id })
+                return options
             }
 
             ListModel { id: steps }
@@ -229,7 +248,7 @@ ColumnLayout {
                 }
                 for (const action of savedRule.actions) {
                     steps.append({ actionType: action.type, message: action.text || "",
-                                   seconds: String(action.duration_s || 5) })
+                                   seconds: String(action.duration_s || 5), commandId: action.command_id || "" })
                 }
             }
 
@@ -264,8 +283,13 @@ ColumnLayout {
                 const actions = []
                 for (let i = 0; i < steps.count; ++i) {
                     const step = steps.get(i)
-                    actions.push(step.actionType === "wait" ? { type: "wait", duration_s: Number(step.seconds) }
-                        : { type: "notify", text: step.message })
+                    if (step.actionType === "wait") {
+                        actions.push({ type: "wait", duration_s: Number(step.seconds) })
+                    } else if (step.actionType === "command") {
+                        actions.push({ type: "command", command_id: step.commandId })
+                    } else {
+                        actions.push({ type: "notify", text: step.message })
+                    }
                 }
                 error = root.editor.applyRule(savedRule ? savedRule.id : "", trigger, actions, condition, areaId)
                 preventClose = error.length > 0
@@ -388,6 +412,11 @@ ColumnLayout {
                         required property string actionType
                         required property string message
                         required property string seconds
+                        required property string commandId
+                        readonly property var actionChoices: dialog.actionChoices(
+                            dialog.arrival || actionType === "wait")
+                        readonly property int actionSelection: actionChoices.findIndex(choice =>
+                            choice.kind === actionType && choice.commandId === commandId)
 
                         Layout.fillWidth: true
 
@@ -399,11 +428,18 @@ ColumnLayout {
                             QGCComboBox {
                                 Layout.fillWidth: true
                                 Accessible.name: qsTr("Step %1 action").arg(stepRow.index + 1)
-                                model: dialog.arrival || stepRow.actionType === "wait"
-                                    ? [qsTr("Show message"), qsTr("Wait at waypoint")] : [qsTr("Show message")]
-                                currentIndex: stepRow.actionType === "wait" ? 1 : 0
-                                onActivated: index => steps.setProperty(stepRow.index, "actionType",
-                                                                        index === 1 ? "wait" : "notify")
+                                model: stepRow.actionChoices
+                                textRole: "label"
+                                plainText: true
+                                currentIndex: stepRow.actionSelection
+                                alternateText: stepRow.actionSelection < 0
+                                    ? qsTr("Unavailable command · %1").arg(stepRow.commandId) : ""
+                                onActivated: index => {
+                                    const choice = stepRow.actionChoices[index]
+                                    if (choice)
+                                        steps.set(stepRow.index, { actionType: choice.kind,
+                                                                   commandId: choice.commandId })
+                                }
                             }
 
                             QGCButton {
@@ -449,6 +485,16 @@ ColumnLayout {
 
                             QGCLabel { text: qsTr("seconds (1–60)") }
                         }
+
+                        QGCLabel {
+                            Layout.fillWidth: true
+                            visible: stepRow.actionType === "command"
+                            text: stepRow.actionSelection < 0
+                                ? qsTr("Choose another step or refresh a compatible DCLink.")
+                                : qsTr("The route resumes when the command completes.")
+                            font.pointSize: ScreenTools.smallFontPointSize
+                            wrapMode: Text.Wrap
+                        }
                     }
                 }
 
@@ -472,8 +518,7 @@ ColumnLayout {
                             return qsTr("DCLink checks the conditions once at the selected point.")
                         if (dialog.usePercentage)
                             return qsTr("Runs once when the aircraft reaches or crosses this point.")
-                        return dialog.arrival ? qsTr("The route continues when the steps finish.")
-                                             : qsTr("Leg rules can show messages while the route continues.")
+                        return qsTr("The route continues when the steps finish.")
                     }
                     wrapMode: Text.Wrap
                 }
