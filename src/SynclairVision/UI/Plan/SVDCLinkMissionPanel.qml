@@ -18,6 +18,9 @@ Rectangle {
     readonly property var _point: editor.selectedWaypoint >= 0 ? editor.waypoints[editor.selectedWaypoint] || ({}) : (
                                                                      {})
     property bool addingWaypoints: false
+    readonly property bool drawingArea: missionAreas.drawing
+    readonly property string editingAreaId: missionAreas.editingId
+    readonly property var areaOutline: missionAreas.outline
     readonly property var editor: SVBackend.missionEditor
     required property var editorMap
 
@@ -42,20 +45,27 @@ Rectangle {
     }
 
     function fitRoute() {
-        if (!visible || !editorMap.mapReady || editor.waypoints.length === 0) {
+        if (!visible || !editorMap.mapReady) {
             return
         }
-        if (!editor.waypoints.every(point => point && Number.isFinite(point.latitude_deg)
+        const points = Array.from(editor.waypoints)
+        if (!editor.readOnly) {
+            for (const area of editor.areas) {
+                for (const vertex of area.vertices)
+                    points.push(vertex)
+            }
+        }
+        if (points.length === 0 || !points.every(point => point && Number.isFinite(point.latitude_deg)
             && Math.abs(point.latitude_deg) <= 90 && Number.isFinite(point.longitude_deg)
             && Math.abs(point.longitude_deg) <= 180)) {
             return
         }
-        const first = editor.waypoints[0]
+        const first = points[0]
         let minLat = first.latitude_deg
         let maxLat = minLat
         let minLon = first.longitude_deg
         let maxLon = minLon
-        for (const point of editor.waypoints) {
+        for (const point of points) {
             minLat = Math.min(minLat, point.latitude_deg)
             maxLat = Math.max(maxLat, point.latitude_deg)
             minLon = Math.min(minLon, point.longitude_deg)
@@ -78,6 +88,14 @@ Rectangle {
         if (editor.busy) {
             return;
         }
+        if (missionAreas.editing) {
+            confirm(qsTr("Leave area editing?"), qsTr("Finish the area to keep its current outline and settings."),
+                function() {
+                    missionAreas.cancel()
+                    guardChange(action)
+                })
+            return
+        }
         addingWaypoints = false;
         if (editor.dirty) {
             const dialog = leaveFactory.open();
@@ -89,11 +107,18 @@ Rectangle {
         }
     }
 
+    function addAreaCorner(latitude, longitude) {
+        missionAreas.addCorner(latitude, longitude)
+    }
+
     color: palette.window
     radius: ScreenTools.defaultBorderRadius
 
     onVisibleChanged: {
         addingWaypoints = false;
+        if (!visible && missionAreas) {
+            missionAreas.cancel()
+        }
         if (visible && !editor.fresh && !editor.busy) {
             editor.refresh();
         }
@@ -189,7 +214,7 @@ Rectangle {
                 }
 
                 QGCButton {
-                    enabled: !root.editor.busy
+                    enabled: !root.editor.busy && !missionAreas.editing
                     text: qsTr("More")
 
                     onClicked: missionMenu.popup()
@@ -344,6 +369,19 @@ Rectangle {
                 wrapMode: Text.WordWrap
             }
 
+            SVDCLinkMissionAreas {
+                id: missionAreas
+
+                Layout.fillWidth: true
+                visible: root.editor.hasDraft && !root.editor.readOnly
+                editor: root.editor
+
+                onEditingChanged: {
+                    if (editing)
+                        root.addingWaypoints = false
+                }
+            }
+
             SVDCLinkMissionRules {
                 Layout.fillWidth: true
                 visible: root.editor.hasDraft && !root.editor.readOnly
@@ -359,8 +397,8 @@ Rectangle {
                 }
 
                 QGCButton {
-                    enabled: root.editor.waypoints.length > 0
-                    text: qsTr("Fit")
+                    enabled: root.editor.waypoints.length > 0 || root.editor.areas.length > 0
+                    text: qsTr("Fit map")
 
                     onClicked: root.fitRoute()
                 }
@@ -371,6 +409,7 @@ Rectangle {
                 checkable: true
                 checked: root.addingWaypoints
                 enabled: root.editor.canEdit && root.editor.waypoints.length < 1000 && root._numericValid
+                    && !missionAreas.editing
                 text: root.addingWaypoints ? qsTr("Done adding") : qsTr("Add waypoints on map")
 
                 onClicked: root.addingWaypoints = !root.addingWaypoints
@@ -518,9 +557,17 @@ Rectangle {
             wrapMode: Text.WordWrap
         }
 
+        QGCLabel {
+            Layout.fillWidth: true
+            font.pointSize: ScreenTools.smallFontPointSize
+            text: qsTr("Finish or cancel the area edit before saving.")
+            visible: missionAreas.editing
+            wrapMode: Text.WordWrap
+        }
+
         QGCButton {
             Layout.fillWidth: true
-            enabled: root.editor.canSave && root._numericValid
+            enabled: root.editor.canSave && root._numericValid && !missionAreas.editing
             text: root.editor.busy ? qsTr("Working…") : qsTr("Save to DCLink")
             visible: root.editor.hasDraft
 
@@ -703,6 +750,7 @@ Rectangle {
 
         function onRouteLoaded() {
             root.addingWaypoints = false;
+            missionAreas.cancel()
             root.fitRoute();
         }
 

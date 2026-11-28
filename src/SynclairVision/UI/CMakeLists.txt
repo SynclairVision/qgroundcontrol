@@ -30,6 +30,7 @@ qt_add_qml_module(SynclairVisionUIModule
         SVBackend.cc
         SVBackend.h
     QML_FILES
+        Plan/SVDCLinkMissionAreas.qml
         Plan/SVDCLinkMissionField.qml
         Plan/SVDCLinkMissionMapItems.qml
         Plan/SVDCLinkMissionPanel.qml

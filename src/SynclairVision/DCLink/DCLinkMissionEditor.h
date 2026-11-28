@@ -22,6 +22,7 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QString currentEntry READ currentEntry NOTIFY changed)
     Q_PROPERTY(QVariantMap mission READ mission NOTIFY changed)
     Q_PROPERTY(QVariantList waypoints READ waypoints NOTIFY changed)
+    Q_PROPERTY(QVariantList areas READ areas NOTIFY changed)
     Q_PROPERTY(QString missionId READ missionId NOTIFY changed)
     Q_PROPERTY(quint32 revision READ revision NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY changed)
@@ -53,6 +54,7 @@ class DCLinkMissionEditor final : public QObject
     Q_PROPERTY(QString flightRunText READ flightRunText NOTIFY changed)
     Q_PROPERTY(QString ruleNotification READ ruleNotification NOTIFY changed)
     Q_PROPERTY(QString recentRuleNotification READ recentRuleNotification NOTIFY changed)
+    Q_PROPERTY(QStringList activeAreaLabels READ activeAreaLabels NOTIFY changed)
     Q_PROPERTY(bool canCancelRun READ canCancelRun NOTIFY changed)
     Q_PROPERTY(int selectedWaypoint READ selectedWaypoint WRITE setSelectedWaypoint NOTIFY changed)
 
@@ -63,6 +65,7 @@ public:
     QString currentEntry() const;
     QVariantMap mission() const;
     QVariantList waypoints() const;
+    QVariantList areas() const;
     QString missionId() const;
     quint32 revision() const;
     bool dirty() const;
@@ -101,6 +104,7 @@ public:
     QString flightRunText() const;
     QString ruleNotification() const;
     QString recentRuleNotification() const;
+    QStringList activeAreaLabels() const;
     bool canCancelRun() const;
 
     int selectedWaypoint() const { return _selectedWaypoint; }
@@ -118,8 +122,11 @@ public:
     Q_INVOKABLE void setWaypointCoordinate(int index, double latitude, double longitude);
     Q_INVOKABLE void moveWaypoint(int from, int to);
     Q_INVOKABLE void removeWaypoint(int index);
+    Q_INVOKABLE QString applyArea(const QString& id, const QString& name, const QVariantList& vertices,
+                                  const QString& advisory);
+    Q_INVOKABLE void removeArea(const QString& id);
     Q_INVOKABLE QString applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions,
-                                  const QVariantMap& condition);
+                                  const QVariantMap& condition, const QString& areaId);
     Q_INVOKABLE void removeRule(int index);
     Q_INVOKABLE void moveRule(int from, int to);
     Q_INVOKABLE void save();

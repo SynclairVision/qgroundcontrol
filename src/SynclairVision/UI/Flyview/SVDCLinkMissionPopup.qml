@@ -150,6 +150,19 @@ Popup {
                 onClicked: root._editor.cancelRun(root._editor.runId)
             }
 
+            Repeater {
+                model: root._editor.activeAreaLabels
+
+                QGCLabel {
+                    required property string modelData
+
+                    Layout.fillWidth: true
+                    text: modelData
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                }
+            }
+
             QGCLabel {
                 Layout.fillWidth: true
                 color: palette.warningText

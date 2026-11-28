@@ -319,7 +319,9 @@ Item {
                 coordinate.altitude = coordinate.altitude.toFixed(_decimalPlaces)
 
                 if (_dclinkMission) {
-                    if (dclinkPanel.addingWaypoints) {
+                    if (dclinkPanel.drawingArea) {
+                        dclinkPanel.addAreaCorner(coordinate.latitude, coordinate.longitude)
+                    } else if (dclinkPanel.addingWaypoints) {
                         SVBackend.missionEditor.addWaypoint(coordinate.latitude, coordinate.longitude)
                     }
                     return
@@ -495,6 +497,9 @@ Item {
             SVDCLinkMissionMapItems {
                 mapControl: editorMap
                 active: _root._dclinkMission
+                drawingArea: dclinkPanel.drawingArea
+                editingAreaId: dclinkPanel.editingAreaId
+                areaOutline: dclinkPanel.areaOutline
                 onPointSelected: dclinkPanel.addingWaypoints = false
             }
 

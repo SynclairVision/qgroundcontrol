@@ -2,10 +2,12 @@
 
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
+#include <QtCore/QPointF>
 #include <QtCore/QSet>
 #include <QtCore/QStringDecoder>
 #include <QtCore/QUuid>
 
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 
@@ -37,9 +39,9 @@ bool validInteger(const QJsonValue& field, int minimum, int maximum)
     return field.isDouble() && value >= minimum && value <= maximum && std::floor(value) == value;
 }
 
-bool validNoticeText(const QString& message)
+bool validText(const QString& message, int limit)
 {
-    if (message.isEmpty() || !message.isValidUtf16() || message.toUcs4().size() > 100 ||
+    if (message.isEmpty() || !message.isValidUtf16() || message.toUcs4().size() > limit ||
         message != message.trimmed() || message.front() == QChar(0xfeff) || message.back() == QChar(0xfeff)) {
         return false;
     }
@@ -57,6 +59,7 @@ bool supportsRule(const QJsonObject& rule)
     const auto required = {QStringLiteral("id"), QStringLiteral("trigger"), QStringLiteral("actions")};
     QJsonObject base = rule;
     const QJsonValue conditionValue = base.take(conditionKey);
+    base.remove(QStringLiteral("area_id"));
     if (!hasKeys(base, required) || !rule.value(QStringLiteral("actions")).isArray()) {
         return false;
     }
@@ -113,6 +116,38 @@ bool supportsRule(const QJsonObject& rule)
         }
     }
     return true;
+}
+
+bool supportsArea(const QJsonObject& area)
+{
+    QJsonObject base = area;
+    base.remove(QStringLiteral("advisory"));
+    return hasKeys(base, {QStringLiteral("id"), QStringLiteral("name"), QStringLiteral("vertices")}) &&
+           area.value(QStringLiteral("vertices")).isArray();
+}
+
+double cross(const QPointF& a, const QPointF& b)
+{
+    return a.x() * b.y() - a.y() * b.x();
+}
+
+bool withinSegmentBounds(const QPointF& p, const QPointF& a, const QPointF& b)
+{
+    return std::min(a.x(), b.x()) <= p.x() && p.x() <= std::max(a.x(), b.x()) &&
+           std::min(a.y(), b.y()) <= p.y() && p.y() <= std::max(a.y(), b.y());
+}
+
+bool edgesIntersect(const QPointF& a, const QPointF& b, const QPointF& c, const QPointF& d)
+{
+    const double abc = cross(b - a, c - a);
+    const double abd = cross(b - a, d - a);
+    const double cda = cross(d - c, a - c);
+    const double cdb = cross(d - c, b - c);
+    const bool crossesFirst = (abc < 0 && abd > 0) || (abc > 0 && abd < 0);
+    const bool crossesSecond = (cda < 0 && cdb > 0) || (cda > 0 && cdb < 0);
+    return (crossesFirst && crossesSecond) ||
+           (abc == 0 && withinSegmentBounds(c, a, b)) || (abd == 0 && withinSegmentBounds(d, a, b)) ||
+           (cda == 0 && withinSegmentBounds(a, c, d)) || (cdb == 0 && withinSegmentBounds(b, c, d));
 }
 }  // namespace
 
@@ -190,8 +225,7 @@ QString unsupportedMission(const QJsonObject& mission)
         !mission.value(QStringLiteral("schema_version")).isDouble() ||
         mission.value(QStringLiteral("schema_version")).toDouble() != SCHEMA_VERSION ||
         mission.value(QStringLiteral("altitude_reference")).toString() != QStringLiteral("relative_home") ||
-        !mission.value(QStringLiteral("rules")).isArray() || !mission.value(QStringLiteral("areas")).isArray() ||
-        !mission.value(QStringLiteral("areas")).toArray().isEmpty()) {
+        !mission.value(QStringLiteral("rules")).isArray() || !mission.value(QStringLiteral("areas")).isArray()) {
         return QObject::tr("This mission contains an unsupported version, altitude reference, or feature. Read only.");
     }
     for (const auto& rule : mission.value(QStringLiteral("rules")).toArray()) {
@@ -199,10 +233,15 @@ QString unsupportedMission(const QJsonObject& mission)
             return QObject::tr("This mission contains an unsupported rule. Read only.");
         }
     }
+    for (const auto& area : mission.value(QStringLiteral("areas")).toArray()) {
+        if (!supportsArea(area.toObject())) {
+            return QObject::tr("This mission contains an unsupported area. Read only.");
+        }
+    }
     return {};
 }
 
-QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
+QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints, const QSet<QString>& areaIds)
 {
     if (!supportsRule(rule) || !validId(rule.value(QStringLiteral("id")).toString())) {
         return QObject::tr("Choose a supported trigger and steps for this rule.");
@@ -225,6 +264,10 @@ QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
         return arrival ? QObject::tr("Choose a waypoint on this route.")
                        : QObject::tr("Choose two consecutive waypoints in route order.");
     }
+    const QJsonValue areaId = rule.value(QStringLiteral("area_id"));
+    if (!areaId.isUndefined() && (!validId(areaId.toString()) || !areaIds.contains(areaId.toString()))) {
+        return QObject::tr("Choose an area in this mission or allow the rule anywhere.");
+    }
     const QJsonObject position = trigger.value(QStringLiteral("position")).toObject();
     if (position.value(QStringLiteral("type")) == QStringLiteral("percent") &&
         !validInteger(position.value(QStringLiteral("percent")), 0, 100)) {
@@ -241,7 +284,7 @@ QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
     for (const auto& value : actions) {
         const QJsonObject action = value.toObject();
         if (action.value(QStringLiteral("type")) == QStringLiteral("notify")) {
-            if (!validNoticeText(action.value(QStringLiteral("text")).toString())) {
+            if (!validText(action.value(QStringLiteral("text")).toString(), 100)) {
                 return QObject::tr(
                     "Use 1–100 characters in each message, without surrounding spaces or line breaks.");
             }
@@ -252,13 +295,92 @@ QString validateRule(const QJsonObject& rule, const QJsonArray& waypoints)
     return {};
 }
 
+QString validateArea(const QJsonObject& area)
+{
+    if (!supportsArea(area) || !validId(area.value(QStringLiteral("id")).toString())) {
+        return QObject::tr("This area has unsupported fields or an invalid identity.");
+    }
+    if (!validText(area.value(QStringLiteral("name")).toString(), 80)) {
+        return QObject::tr("Use an area name with 1–80 characters and no surrounding whitespace.");
+    }
+    const QJsonValue advisory = area.value(QStringLiteral("advisory"));
+    if (!advisory.isUndefined() && !validText(advisory.toString(), 100)) {
+        return QObject::tr("Use an advisory with 1–100 characters and no surrounding whitespace or line breaks.");
+    }
+    const QJsonArray vertices = area.value(QStringLiteral("vertices")).toArray();
+    if (vertices.size() < 3 || vertices.size() > MAX_AREA_VERTICES) {
+        return QObject::tr("Draw between 3 and %1 corners.").arg(MAX_AREA_VERTICES);
+    }
+    QList<QPointF> points;
+    double minLon = 180.0;
+    double maxLon = -180.0;
+    for (const QJsonValue& vertex : vertices) {
+        const QJsonObject point = vertex.toObject();
+        const double latitude = point.value(QStringLiteral("latitude_deg")).toDouble(NAN);
+        const double longitude = point.value(QStringLiteral("longitude_deg")).toDouble(NAN);
+        if (!hasKeys(point, {QStringLiteral("latitude_deg"), QStringLiteral("longitude_deg")}) ||
+            !std::isfinite(latitude) || !std::isfinite(longitude) || std::abs(latitude) >= 90 ||
+            std::abs(longitude) > 180) {
+            return QObject::tr("Choose valid area corners away from the poles.");
+        }
+        if (std::ranges::any_of(points, [latitude, longitude](const QPointF& p) {
+                return p.x() == longitude && p.y() == latitude;
+            })) {
+            return QObject::tr("Each area corner needs a different position.");
+        }
+        points.append({longitude, latitude});
+        minLon = std::min(minLon, longitude);
+        maxLon = std::max(maxLon, longitude);
+    }
+    if (maxLon - minLon >= 180.0) {
+        return QObject::tr("Draw an area that spans less than 180° longitude on one side of the date line.");
+    }
+    double areaTwice = 0.0;
+    const qsizetype size = points.size();
+    for (qsizetype i = 0; i < size; ++i) {
+        const qsizetype next = (i + 1) % size;
+        const QPointF a = points[i];
+        const QPointF b = points[next];
+        const QPointF edgeIn = a - b;
+        const QPointF edgeOut = points[(next + 1) % size] - b;
+        if (cross(edgeIn, edgeOut) == 0 && QPointF::dotProduct(edgeIn, edgeOut) > 0) {
+            return QObject::tr("Draw the corners in order around the area so its edges do not overlap.");
+        }
+        for (qsizetype j = i + 2; j < size; ++j) {
+            const qsizetype after = (j + 1) % size;
+            if (after != i && edgesIntersect(a, b, points[j], points[after])) {
+                return QObject::tr("Draw the corners in order around the area so its edges do not cross.");
+            }
+        }
+        areaTwice += cross(a - points.front(), b - points.front());
+    }
+    return areaTwice == 0.0 ? QObject::tr("Draw an area with room inside its outline.") : QString();
+}
+
+QSet<QString> areaIds(const QJsonArray& areas)
+{
+    QSet<QString> ids;
+    for (const auto& area : areas) {
+        ids.insert(area.toObject().value(QStringLiteral("id")).toString());
+    }
+    return ids;
+}
+
 bool validRuleNotification(const QJsonValue& value)
 {
     const QJsonObject event = value.toObject();
     return event.value(QStringLiteral("type")) == QStringLiteral("notify") &&
            validId(event.value(QStringLiteral("rule_id")).toString()) &&
            validInteger(event.value(QStringLiteral("action_index")), 1, MAX_RULE_ACTIONS) &&
-           validNoticeText(event.value(QStringLiteral("text")).toString());
+           validText(event.value(QStringLiteral("text")).toString(), 100);
+}
+
+bool validActiveArea(const QJsonObject& area)
+{
+    const QJsonValue advisory = area.value(QStringLiteral("advisory"));
+    return validId(area.value(QStringLiteral("area_id")).toString()) &&
+           validText(area.value(QStringLiteral("name")).toString(), 80) &&
+           (advisory.isUndefined() || validText(advisory.toString(), 100));
 }
 
 QString validateMission(const QJsonObject& mission)
@@ -314,6 +436,23 @@ QString validateMission(const QJsonObject& mission)
             return QObject::tr("Waypoint %1 requires valid coordinates and a positive acceptance radius.").arg(index);
         }
     }
+    const QJsonArray areas = mission.value(QStringLiteral("areas")).toArray();
+    if (areas.size() > MAX_AREAS) {
+        return QObject::tr("A mission can contain at most %1 areas.").arg(MAX_AREAS);
+    }
+    QSet<QString> checkedAreaIds;
+    for (qsizetype i = 0; i < areas.size(); ++i) {
+        const QJsonObject area = areas.at(i).toObject();
+        const QString error = validateArea(area);
+        if (!error.isEmpty()) {
+            return QObject::tr("Area %1. %2").arg(i + 1).arg(error);
+        }
+        const QString id = area.value(QStringLiteral("id")).toString();
+        if (checkedAreaIds.contains(id)) {
+            return QObject::tr("Area %1 has a repeated identity.").arg(i + 1);
+        }
+        checkedAreaIds.insert(id);
+    }
     const QJsonArray rules = mission.value(QStringLiteral("rules")).toArray();
     if (rules.size() > MAX_RULES) {
         return QObject::tr("A mission can contain at most %1 rules.").arg(MAX_RULES);
@@ -322,7 +461,7 @@ QString validateMission(const QJsonObject& mission)
     int totalWait = 0;
     for (qsizetype i = 0; i < rules.size(); ++i) {
         const QJsonObject rule = rules.at(i).toObject();
-        const QString ruleError = validateRule(rule, route.toArray());
+        const QString ruleError = validateRule(rule, route.toArray(), checkedAreaIds);
         if (!ruleError.isEmpty()) {
             return QObject::tr("Rule %1. %2").arg(i + 1).arg(ruleError);
         }

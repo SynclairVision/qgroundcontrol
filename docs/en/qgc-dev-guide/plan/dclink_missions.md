@@ -90,8 +90,8 @@ aircraft connection is needed for authoring or library operations.
   selection. Select a numbered point to drag it, edit coordinates, altitude
   above HOME or acceptance radius, move it **Up/Down**, or remove it. A selected
   point shows its acceptance circle. New points initially use a 30 m radius
-  and the previous point's altitude, or 30 m for the first point. **Fit** frames
-  this route without including unrelated aircraft plans or vehicles.
+  and the previous point's altitude, or 30 m for the first point. **Fit map**
+  frames this mission's route and areas.
 - **More → Import QGC plan…** validates the complete supported waypoint subset
   using QGC's `MissionItem` loader, then shows a conversion confirmation.
   Aircraft-default radii require confirmation of the editable positive radius.
@@ -102,7 +102,7 @@ aircraft connection is needed for authoring or library operations.
   **Remove local draft…** separately removes local work.
 
 The implementation is localized in `DCLinkMissionEditor`,
-`DCLinkMissionPlanImport`, the three `UI/Plan/SVDCLinkMission*` components and the
+`DCLinkMissionPlanImport`, the `UI/Plan/SVDCLinkMission*` components and the
 Plan view/toolbar destination switch. `SVBackend.missionEditor` owns the model
 for the application lifetime, independent of view creation and active aircraft.
 The existing transport's strict JSON key check is shared with file import.
@@ -230,11 +230,10 @@ such as **Local draft**, **Unsaved changes** or **Saved revision 4** beside the
 mission name. Display the running revision separately when execution support is
 available.
 
-The route-management MVP has only the **Route** editor. Later phases introduce
-**Rules** and **Areas** when both the client editor and selected service support
-them. Hide unavailable future tabs instead of filling the screen with disabled
-controls. A mission containing unsupported features can be viewed read-only;
-QGC must not save a reduced document that drops those features.
+The editor keeps the route visible and groups the optional **Rules** and
+**Areas** in expandable sections. Each added feature requires a matching
+DCLink capability before save. A mission containing unsupported features
+opens read-only with its content intact.
 
 ## Route MVP
 
@@ -323,7 +322,8 @@ In the DCLink Plan panel, expand **Rules** and choose **Add rule**. Select
 On a leg, choose **Start of leg**, **Anywhere on the leg**, or **At a percentage**.
 A whole percentage marks progress along the route from the first waypoint to
 the second. For example, 50% is halfway, 0% is the start of the leg, and 100%
-is when DCLink accepts arrival at the second waypoint.
+is when DCLink accepts arrival at the second waypoint. The percentage rule
+checks once when that point is reached or crossed.
 The editor displays waypoint numbers and saves stable waypoint IDs. Removing
 a referenced point or changing a leg's order requires fixing the affected
 rule before saving.
@@ -333,8 +333,8 @@ classified detection. Leave **Camera class ID (optional)** blank for any class
 or enter the numeric ID from your camera model. Waypoint, leg-start, and
 percentage rules check the condition once at the selected event. **Anywhere
 on the leg** runs once on the first match while that leg is active. With
-**Always** selected, it runs at the beginning of the leg. A missing, stale, or
-nonmatching detection leaves the mission on its planned route.
+no camera or area condition, it runs at the beginning of the leg. A missing,
+stale, or nonmatching detection leaves the mission on its planned route.
 
 Add **Show message** or **Wait at waypoint** steps. The steps run in the
 displayed order, then the route continues. For example, at waypoint 2, show
@@ -354,12 +354,24 @@ Rules with a camera condition or along-leg timing require a DCLink build
 that supports those features. Existing waypoint and leg-start rules continue
 to work on mission-format 2 builds.
 
-## Later areas
+## Behavior areas
 
-Areas will reuse geographic drawing controls with a name and supported behavior
-preset. A behavior area is distinct from an aircraft geofence. Drawing an area
-does not implement obstacle sensing or avoidance; the service must advertise and
-validate that behavior before the editor offers it.
+In **Areas**, choose **Draw area on map**. Tap at least three corners in order,
+name the area, and select **Finish area**. QGC closes the outline when you
+finish. Use **Undo corner** to remove the last tap, or use **Edit → Redraw** to
+replace an existing outline while keeping its rule assignments. **Save to
+DCLink** saves the route, rules, and areas together.
+
+An optional advisory appears in the Fly View **DCLink Mission** popup while
+the aircraft is inside the area on an active run. To scope an action to that
+area, pick its name under **Area** in the rule editor. When the rule also has a
+camera condition, both have to match. Removing an area prompts you to repair
+its rule references before the draft can be saved.
+
+Try a route that crosses an area from outside to inside and back out. Add an
+**Anywhere on the leg** rule scoped to the area, then save and reload the
+mission. In PX4 SITL, use the **DCLink Mission** popup to verify that the
+advisory appears while inside and the scoped action runs on its first match.
 
 ## Review checklist for future implementation
 
@@ -378,8 +390,8 @@ validate that behavior before the editor offers it.
   **Save as copy**, preserving both the local draft and the confirmed server state.
 - A lost save reply is reconciled without a duplicate mission, implicit start or
   unconditional overwrite.
-- Unsupported Rules/Areas tabs remain hidden, and documents with unsupported
-  features cannot be saved after losing those features.
+- Rule and area data is preserved when a document opens read-only. Saves check
+  the required capabilities before uploading the draft.
 - In the execution phase, save and start are visibly distinct, prerequisites show
   clear reasons, and edits never mutate a running revision.
 - Existing map interaction, aircraft planning, flight controls and the DCLink

@@ -20,7 +20,13 @@ ColumnLayout {
     property bool expanded: false
     readonly property var _rules: editor.readOnly ? [] : (editor.mission.rules || [])
     readonly property var _waypoints: editor.waypoints
+    readonly property var _areas: editor.areas
     readonly property bool _brokenReference: _rules.some(rule => triggerIndex(rule.trigger) < 0)
+    readonly property bool _missingArea: _rules.some(rule => rule.area_id && !areaName(rule.area_id))
+
+    function areaName(areaId) {
+        return _areas.find(area => area.id === areaId)?.name || ""
+    }
 
     function triggerIndex(trigger) {
         if (!trigger)
@@ -63,6 +69,13 @@ ColumnLayout {
         wrapMode: Text.Wrap
     }
 
+    QGCLabel {
+        Layout.fillWidth: true
+        visible: root._missingArea
+        text: qsTr("Choose a new area for the affected rule or remove its area restriction before saving.")
+        wrapMode: Text.Wrap
+    }
+
     ColumnLayout {
         Layout.fillWidth: true
         visible: root.expanded
@@ -98,6 +111,17 @@ ColumnLayout {
                     text: row.modelData.condition?.class_id !== undefined
                         ? qsTr("If the camera sees class ID %1").arg(row.modelData.condition.class_id)
                         : qsTr("If the camera sees an object")
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    wrapMode: Text.Wrap
+                }
+
+                QGCLabel {
+                    Layout.fillWidth: true
+                    visible: !!row.modelData.area_id
+                    text: root.areaName(row.modelData.area_id)
+                        ? qsTr("Only inside %1").arg(root.areaName(row.modelData.area_id))
+                        : qsTr("Area removed")
+                    textFormat: Text.PlainText
                     font.pointSize: ScreenTools.smallFontPointSize
                     wrapMode: Text.Wrap
                 }
@@ -171,6 +195,10 @@ ColumnLayout {
                     : SVDCLinkMissionRules.LegTiming.Anywhere) : SVDCLinkMissionRules.LegTiming.Start
             readonly property bool usePercentage: !arrival && legTiming === SVDCLinkMissionRules.LegTiming.Percentage
             property bool needsDetection: !!savedRule?.condition
+            property string areaId: savedRule?.area_id || ""
+            readonly property var areaChoices: [{ id: "", name: qsTr("No area restriction") }]
+                .concat(Array.from(root._areas))
+            readonly property int areaSelection: areaChoices.findIndex(area => area.id === areaId)
             property string first: savedRule
                 ? (arrival ? savedRule.trigger.waypoint_id || "" : savedRule.trigger.from_waypoint_id || "")
                 : (root._waypoints.length > 0 ? root._waypoints[0].id : "")
@@ -186,7 +214,7 @@ ColumnLayout {
 
             buttons: Dialog.Apply | Dialog.Cancel
             acceptButtonEnabled: root.editor.canEdit && entry === root.editor.currentEntry
-                && selection >= 0 && steps.count > 0
+                && selection >= 0 && areaSelection >= 0 && steps.count > 0
 
             function appendStep() {
                 steps.append({ actionType: "notify", message: "", seconds: "5" })
@@ -239,7 +267,7 @@ ColumnLayout {
                     actions.push(step.actionType === "wait" ? { type: "wait", duration_s: Number(step.seconds) }
                         : { type: "notify", text: step.message })
                 }
-                error = root.editor.applyRule(savedRule ? savedRule.id : "", trigger, actions, condition)
+                error = root.editor.applyRule(savedRule ? savedRule.id : "", trigger, actions, condition, areaId)
                 preventClose = error.length > 0
             }
 
@@ -326,6 +354,22 @@ ColumnLayout {
                         text: String(dialog.savedRule?.condition?.class_id ?? "")
                         validator: IntValidator { bottom: 0; top: 32767; locale: "C" }
                     }
+                }
+
+                QGCLabel {
+                    text: qsTr("Area")
+                    visible: dialog.areaChoices.length > 1 || dialog.areaId.length > 0
+                }
+
+                QGCComboBox {
+                    Layout.fillWidth: true
+                    visible: dialog.areaChoices.length > 1 || dialog.areaId.length > 0
+                    Accessible.name: qsTr("Area restriction")
+                    model: dialog.areaChoices
+                    textRole: "name"
+                    currentIndex: dialog.areaSelection
+                    displayText: dialog.areaSelection < 0 ? qsTr("Choose an area again") : currentText
+                    onActivated: index => dialog.areaId = dialog.areaChoices[index].id
                 }
 
                 QGCLabel {
@@ -421,10 +465,13 @@ ColumnLayout {
                         if (dialog.error.length > 0)
                             return dialog.error
                         if (!dialog.arrival && dialog.legTiming === SVDCLinkMissionRules.LegTiming.Anywhere)
-                            return dialog.needsDetection ? qsTr("Runs once on the first match on this leg.")
+                            return dialog.needsDetection || dialog.areaId.length > 0
+                                ? qsTr("Runs once on the first match on this leg.")
                                 : qsTr("With no condition, this runs at the start of the leg.")
-                        if (dialog.needsDetection)
-                            return qsTr("DCLink checks the condition once at the selected point.")
+                        if (dialog.needsDetection || dialog.areaId.length > 0)
+                            return qsTr("DCLink checks the conditions once at the selected point.")
+                        if (dialog.usePercentage)
+                            return qsTr("Runs once when the aircraft reaches or crosses this point.")
                         return dialog.arrival ? qsTr("The route continues when the steps finish.")
                                              : qsTr("Leg rules can show messages while the route continues.")
                     }

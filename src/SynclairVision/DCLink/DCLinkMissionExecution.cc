@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>
 #include <QtCore/QStringList>
 #include <QtCore/QUuid>
@@ -279,6 +280,26 @@ QString DCLinkMissionEditor::ruleNotification() const
 QString DCLinkMissionEditor::recentRuleNotification() const
 {
     return _ruleNotificationAge.isValid() && _ruleNotificationAge.elapsed() < 8000 ? ruleNotification() : QString();
+}
+
+QStringList DCLinkMissionEditor::activeAreaLabels() const
+{
+    const QJsonValue field = QJsonValue::fromVariant(_run.value(QStringLiteral("active_areas")));
+    if (!_runFresh() || _run.value(QStringLiteral("state")).toString() != QStringLiteral("running") ||
+        !field.isArray() || field.toArray().size() > DCLinkMissionJson::MAX_AREAS) {
+        return {};
+    }
+    QStringList labels;
+    for (const auto& value : field.toArray()) {
+        const QJsonObject area = value.toObject();
+        if (!DCLinkMissionJson::validActiveArea(area)) {
+            return {};
+        }
+        const QString name = area.value(QStringLiteral("name")).toString();
+        const QString advisory = area.value(QStringLiteral("advisory")).toString();
+        labels.append(advisory.isEmpty() ? tr("Inside %1").arg(name) : tr("%1 · %2").arg(name, advisory));
+    }
+    return labels;
 }
 
 QString DCLinkMissionEditor::flightRunText() const

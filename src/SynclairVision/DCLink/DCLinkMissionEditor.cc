@@ -107,6 +107,11 @@ QVariantList DCLinkMissionEditor::waypoints() const
     return mission().value(QStringLiteral("waypoints")).toList();
 }
 
+QVariantList DCLinkMissionEditor::areas() const
+{
+    return mission().value(QStringLiteral("areas")).toList();
+}
+
 QString DCLinkMissionEditor::missionId() const
 {
     return _draft().value(QStringLiteral("mission_id")).toString();
@@ -221,6 +226,10 @@ QString DCLinkMissionEditor::saveReason() const
     const auto features = _client->capabilities().value(QStringLiteral("features")).toStringList();
     if (!rules.isEmpty() && !features.contains(QStringLiteral("waypoint_rules"))) {
         return tr("This DCLink does not support waypoint rules.");
+    }
+    if (!content.value(QStringLiteral("areas")).toArray().isEmpty() &&
+        !features.contains(QStringLiteral("mission_behavior_areas"))) {
+        return tr("Update DCLink to save behavior areas.");
     }
     if (!features.contains(QStringLiteral("mission_detection_rules"))) {
         for (const QJsonValue& value : rules) {
@@ -576,8 +585,62 @@ void DCLinkMissionEditor::_mutate(const QString& action, const QVariantMap& payl
     }
 }
 
+QString DCLinkMissionEditor::applyArea(const QString& id, const QString& name, const QVariantList& vertices,
+                                      const QString& advisory)
+{
+    if (!canEdit()) {
+        return tr("This mission cannot be edited right now.");
+    }
+    QVariantList updated = areas();
+    const auto entry = std::ranges::find_if(updated, [&id](const QVariant& area) {
+        return area.toMap().value(QStringLiteral("id")).toString() == id;
+    });
+    if (!id.isEmpty() && entry == updated.end()) {
+        return tr("This area has changed. Open it again to edit.");
+    }
+    if (id.isEmpty() && updated.size() >= DCLinkMissionJson::MAX_AREAS) {
+        return tr("A mission can contain at most %1 areas.").arg(DCLinkMissionJson::MAX_AREAS);
+    }
+    QVariantMap area{{QStringLiteral("id"), id.isEmpty() ? newId() : id},
+                     {QStringLiteral("name"), name},
+                     {QStringLiteral("vertices"), vertices}};
+    if (!advisory.isEmpty()) {
+        area.insert(QStringLiteral("advisory"), advisory);
+    }
+    const QString error = DCLinkMissionJson::validateArea(QJsonObject::fromVariantMap(area));
+    if (!error.isEmpty()) {
+        return error;
+    }
+    if (id.isEmpty()) {
+        updated.append(area);
+    } else {
+        *entry = area;
+    }
+    QVariantMap content = mission();
+    content.insert(QStringLiteral("areas"), updated);
+    _editMission(content);
+    return {};
+}
+
+void DCLinkMissionEditor::removeArea(const QString& id)
+{
+    if (!canEdit() || id.isEmpty()) {
+        return;
+    }
+    QVariantList updated = areas();
+    const auto entry = std::ranges::find_if(updated, [&id](const QVariant& area) {
+        return area.toMap().value(QStringLiteral("id")).toString() == id;
+    });
+    if (entry != updated.end()) {
+        updated.erase(entry);
+        QVariantMap content = mission();
+        content.insert(QStringLiteral("areas"), updated);
+        _editMission(content);
+    }
+}
+
 QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& trigger, const QVariantList& actions,
-                                      const QVariantMap& condition)
+                                      const QVariantMap& condition, const QString& areaId)
 {
     if (!canEdit()) {
         return tr("This mission cannot be edited right now.");
@@ -606,8 +669,12 @@ QString DCLinkMissionEditor::applyRule(const QString& id, const QVariantMap& tri
     if (!condition.isEmpty()) {
         rule.insert(QStringLiteral("condition"), condition);
     }
+    if (!areaId.isEmpty()) {
+        rule.insert(QStringLiteral("area_id"), areaId);
+    }
     const QString error = DCLinkMissionJson::validateRule(
-        QJsonObject::fromVariantMap(rule), QJsonArray::fromVariantList(waypoints()));
+        QJsonObject::fromVariantMap(rule), QJsonArray::fromVariantList(waypoints()),
+        DCLinkMissionJson::areaIds(QJsonArray::fromVariantList(areas())));
     if (!error.isEmpty()) {
         return error;
     }
